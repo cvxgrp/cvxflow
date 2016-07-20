@@ -50,14 +50,16 @@ def test_scs():
         tf.Variable(tf.expand_dims(tf.zeros(n), 1)),
         tf.Variable(tf.expand_dims(tf.zeros(m), 1)),
         tf.Variable(tf.expand_dims(tf.ones(1), 1)))
-    u_tilde = scs_tf.PrimalVars(
-        tf.Variable(tf.expand_dims(tf.zeros(n), 1)),
-        tf.Variable(tf.expand_dims(tf.zeros(m), 1)),
-        tf.Variable(tf.expand_dims(tf.ones(1), 1)))
     v = scs_tf.DualVars(
         tf.Variable(tf.expand_dims(tf.zeros(n), 1)),
         tf.Variable(tf.expand_dims(tf.zeros(m), 1)),
         tf.Variable(tf.expand_dims(tf.ones(1), 1)))
+
+    # cache
+    cache = scs_tf.Cache(
+        tf.Variable(tf.zeros((n, n))),
+        tf.Variable(tf.expand_dims(tf.zeros(n), 1)),
+        tf.Variable(tf.expand_dims(tf.zeros(m), 1)))
 
     # random data
     np.random.seed(0)
@@ -73,47 +75,35 @@ def test_scs():
 
     # operations
     init = tf.initialize_all_variables()
-    subspace_projection_op = scs_tf.subspace_projection(A, b, c, u, u_tilde, v)
-    cone_projection_op = scs_tf.cone_projection(data["dims"], u, u_tilde, v)
-    dual_update_op = scs_tf.dual_update(u, u_tilde, v)
+    factorize_op = scs_tf.factorize(A, b, c, cache)
+    iteration_op = scs_tf.iteration(A, b, c, data["dims"], cache, u, v)
 
     with tf.Session() as sess:
         sess.run(init)
+        sess.run(factorize_op, feed_dict=feed_dict)
 
         print "first iteration"
         u_tilde0 = expected_subspace_projection(A0, b0, c0, u0 + v0)
-        sess.run(subspace_projection_op, feed_dict=feed_dict)
-        np.testing.assert_allclose(u_tilde0[:n],    sess.run(u_tilde.x)[:,0],  rtol=1e-4, atol=1e-4)
-        np.testing.assert_allclose(u_tilde0[n:n+m], sess.run(u_tilde.y)[:,0],  rtol=1e-4, atol=1e-4)
-        np.testing.assert_allclose(u_tilde0[-1],    sess.run(u_tilde.tau),     rtol=1e-4, atol=1e-4)
-
         u0 = expected_cone_projection(u_tilde0 - v0, n, data["dims"])
-        sess.run(cone_projection_op)
+        v0 = v0 - u_tilde0 + u0
+
+        sess.run(iteration_op, feed_dict=feed_dict)
         np.testing.assert_allclose(u0[:n],    sess.run(u.x)[:,0],  rtol=1e-4, atol=1e-4)
         np.testing.assert_allclose(u0[n:n+m], sess.run(u.y)[:,0],  rtol=1e-4, atol=1e-4)
         np.testing.assert_allclose(u0[-1],    sess.run(u.tau),     rtol=1e-4, atol=1e-4)
-
-        v0 = v0 - u_tilde0 + u0
-        sess.run(dual_update_op)
         np.testing.assert_allclose(v0[:n],    sess.run(v.r)[:,0],  rtol=1e-4, atol=1e-4)
         np.testing.assert_allclose(v0[n:n+m], sess.run(v.s)[:,0],  rtol=1e-4, atol=1e-4)
         np.testing.assert_allclose(v0[-1],    sess.run(v.kappa),   rtol=1e-4, atol=1e-4)
 
         print "second iteration"
         u_tilde0 = expected_subspace_projection(A0, b0, c0, u0 + v0)
-        sess.run(subspace_projection_op, feed_dict=feed_dict)
-        np.testing.assert_allclose(u_tilde0[:n],    sess.run(u_tilde.x)[:,0],  rtol=1e-4, atol=1e-4)
-        np.testing.assert_allclose(u_tilde0[n:n+m], sess.run(u_tilde.y)[:,0],  rtol=1e-4, atol=1e-4)
-        np.testing.assert_allclose(u_tilde0[-1],    sess.run(u_tilde.tau),     rtol=1e-4, atol=1e-4)
-
         u0 = expected_cone_projection(u_tilde0 - v0, n, data["dims"])
-        sess.run(cone_projection_op)
+        v0 = v0 - u_tilde0 + u0
+
+        sess.run(iteration_op, feed_dict=feed_dict)
         np.testing.assert_allclose(u0[:n],    sess.run(u.x)[:,0],  rtol=1e-4, atol=1e-4)
         np.testing.assert_allclose(u0[n:n+m], sess.run(u.y)[:,0],  rtol=1e-4, atol=1e-4)
         np.testing.assert_allclose(u0[-1],    sess.run(u.tau),     rtol=1e-4, atol=1e-4)
-
-        v0 = v0 - u_tilde0 + u0
-        sess.run(dual_update_op)
         np.testing.assert_allclose(v0[:n],    sess.run(v.r)[:,0],  rtol=1e-4, atol=1e-4)
         np.testing.assert_allclose(v0[n:n+m], sess.run(v.s)[:,0],  rtol=1e-4, atol=1e-4)
         np.testing.assert_allclose(v0[-1],    sess.run(v.kappa),   rtol=1e-4, atol=1e-4)

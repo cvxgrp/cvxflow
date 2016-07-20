@@ -188,8 +188,8 @@ if __name__ == "__main__":
     prob = cvx.Problem(cvx.Minimize(c.T*x), [A*x == b, x >= 0])
 
     # solve with tensorflow
-    iters = 10
-    trace = True
+    iters = 560
+    trace = False
     solve_scs_tf(prob.get_problem_data(cvx.SCS), iters)
 
     # solve with SCS
