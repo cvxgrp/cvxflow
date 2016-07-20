@@ -1,12 +1,15 @@
 """Solve an LP using SCS on tensorflow."""
 
 from collections import namedtuple
+import time
+
 import cvxpy as cvx
 import numpy as np
 import tensorflow as tf
 
 PrimalVars = namedtuple("PrimalVars", ["x", "y", "tau"])
 DualVars = namedtuple("DualVars", ["r", "s", "kappa"])
+Cache = namedtuple("Cache", ["L", "g_x", "g_y"])
 
 def dot(x, y):
     return tf.matmul(x, y, transpose_a=True)
@@ -39,28 +42,33 @@ def solve_linear(A, L, w_x, w_y):
     z_y = w_y + tf.matmul(A, z_x)
     return z_x, z_y
 
-def iteration(A, b, c, dims, u, v):
-    """A single SCS iteration."""
-
-    # factorization of M and M^{-1}h
+def factorize(A, b, c, cache):
+    """Factorize M and compute g = M^{-1}h."""
     n = A.get_shape()[1]
     ATA = tf.matmul(A, A, transpose_a=True)
     I = tf.constant(np.eye(n), dtype=tf.float32)
     L = tf.cholesky(I + ATA)
     g_x, g_y = solve_linear(A, L, c, b)
-    g_dot_h = dot(g_x, c) + dot(g_y, b)
 
+    return tf.group(
+        cache.L.assign(L),
+        cache.g_x.assign(g_x),
+        cache.g_y.assign(g_y))
+
+def iteration(A, b, c, dims, cache, u, v):
+    """A single SCS iteration."""
     # u_tilde: solve linear system
     w_x = u.x + v.r
     w_y = u.y + v.s
     w_tau = u.tau + v.kappa
 
-    z_x, z_y = solve_linear(A, L, w_x, w_y)
-    g_dot_w = dot(g_x, w_x) + dot(g_y, w_y)
+    z_x, z_y = solve_linear(A, cache.L, w_x, w_y)
+    g_dot_w = dot(cache.g_x, w_x) + dot(cache.g_y, w_y)
+    g_dot_h = dot(cache.g_x, c)   + dot(cache.g_y, b)
     alpha = (w_tau*g_dot_h - dot(z_x, c) - dot(z_y, b))/(1 + g_dot_h) - w_tau
 
-    u_tilde_x = z_x + alpha*g_x
-    u_tilde_y = z_y + alpha*g_y
+    u_tilde_x = z_x + alpha*cache.g_x
+    u_tilde_y = z_y + alpha*cache.g_y
     u_tilde_tau = w_tau + dot(c, u_tilde_x) + dot(b, u_tilde_y)
 
     # u: cone projection
@@ -83,7 +91,6 @@ def iteration(A, b, c, dims, u, v):
 
 def residuals(A, b, c, u, v):
     """SCS residuals and duality gap."""
-
     x = u.x / u.tau
     y = u.y / u.tau
     s = v.s / u.tau
@@ -93,7 +100,7 @@ def residuals(A, b, c, u, v):
     b_dot_y = dot(b, y)
     return p_norm, d_norm, c_dot_x, b_dot_y, x, y, s
 
-def solve_scs_tf(data):
+def solve_scs_tf(data, iterations):
     """Create SCS tensorflow graph and solve."""
     # inputs
     m, n = data["A"].shape
@@ -111,9 +118,16 @@ def solve_scs_tf(data):
         tf.Variable(tf.expand_dims(tf.zeros(m), 1)),
         tf.Variable(tf.expand_dims(tf.ones(1), 1)))
 
+    # cache
+    cache = Cache(
+        tf.Variable(tf.zeros((n, n))),
+        tf.Variable(tf.expand_dims(tf.zeros(n), 1)),
+        tf.Variable(tf.expand_dims(tf.zeros(m), 1)))
+
     # ops
     init = tf.initialize_all_variables()
-    iteration_op = iteration(A, b, c, data["dims"], u, v)
+    factorize_op = factorize(A, b, c, cache)
+    iteration_op = iteration(A, b, c, data["dims"], cache, u, v)
     p_norm, d_norm, c_dot_x, b_dot_y, x, y, s = residuals(A, b, c, u, v)
 
     # solve with tensorflow
@@ -124,12 +138,27 @@ def solve_scs_tf(data):
     }
     b_norm = np.linalg.norm(data["b"])
     c_norm = np.linalg.norm(data["c"])
-    max_iterations = 200
 
+    if trace:
+        run_options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
+        run_metadata = tf.RunMetadata()
+
+    t0 = time.time()
     with tf.Session() as sess:
         sess.run(init)
-        for k in xrange(max_iterations):
-            sess.run(iteration_op, feed_dict=feed_dict)
+        sess.run(factorize_op, feed_dict=feed_dict)
+
+        for k in xrange(iterations):
+            if trace:
+                sess.run(iteration_op, feed_dict=feed_dict, options=run_options,
+                         run_metadata=run_metadata)
+
+                tl = tf.python.client.timeline.Timeline(run_metadata.step_stats)
+                ctf = tl.generate_chrome_trace_format()
+                with open("scs_tf_iter_%d.json" % k, "w") as f:
+                    f.write(ctf)
+            else:
+                sess.run(iteration_op, feed_dict=feed_dict)
 
             if k % 20 == 0:
                 # compute residuals
@@ -144,20 +173,26 @@ def solve_scs_tf(data):
                     d_norm0 / (1 + c_norm),
                     np.abs(g) / (1 + np.abs(c_dot_x0) + np.abs(b_dot_y0)),
                     tau0, kappa0)
-        print "objective value:", c_dot_x0
+        print "objective value = %.4f" % c_dot_x0
+        print "%.2e seconds" % (time.time() - t0)
 
 if __name__ == "__main__":
-    # Form LP and get SCS form with cvxpy
-    m = 5
-    n = 10
-
+    # form LP
     np.random.seed(0)
+    m = 500
+    n = 1000
     A = np.abs(np.random.randn(m,n))
     b = A.dot(np.abs(np.random.randn(n)))
-    c = np.random.rand(n) + 0.5
-
+    c = np.random.rand(n)
     x = cvx.Variable(n)
     prob = cvx.Problem(cvx.Minimize(c.T*x), [A*x == b, x >= 0])
 
-    solve_scs_tf(prob.get_problem_data(cvx.SCS))
+    # solve with tensorflow
+    iters = 10
+    trace = True
+    solve_scs_tf(prob.get_problem_data(cvx.SCS), iters)
+
+    # solve with SCS
+    t0 = time.time()
     prob.solve(solver=cvx.SCS, verbose=True)
+    print "%.2e seconds" % (time.time() - t0)
