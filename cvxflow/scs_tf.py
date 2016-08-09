@@ -7,9 +7,12 @@ import cvxpy as cvx
 import numpy as np
 import tensorflow as tf
 
+from cvxflow.tf_problem import *
+
 PrimalVars = namedtuple("PrimalVars", ["x", "y", "tau"])
 DualVars = namedtuple("DualVars", ["r", "s", "kappa"])
-Cache = namedtuple("Cache", ["L", "g_x", "g_y"])
+Cache = namedtuple("Cache", ["g_x", "g_y"])
+Residuals = namedtuple("Residuals", ["p_norm", "d_norm", "c_dot_x", "b_dot_y"])
 
 def dot(x, y):
     return tf.matmul(x, y, transpose_a=True)
@@ -21,48 +24,28 @@ def proj_nonnegative(x):
     return tf.maximum(x, tf.zeros_like(x))
 
 def proj_dual_cone(x, dims):
-    idx = 0
-    values = []
 
-    # zero cone
-    values += [x[idx:idx+dims["f"],0:1]]
-    idx += dims["f"]
-
-    # nonnegative orthant
-    values += [proj_nonnegative(x[idx:idx+dims["l"],0:1])]
-    idx += dims["l"]
-
-    # TODO(mwytock): implement other cone projections
-
-    return tf.concat(0, values)
-
-def solve_linear(A, L, w_x, w_y):
-    rhs = w_x - tf.matmul(A, w_y, transpose_a=True)
-    z_x = tf.cholesky_solve(L, rhs)
-    z_y = w_y + tf.matmul(A, z_x)
+def solve_linear(A, AT, w_x, w_y):
+    rhs = w_x - AT(w_y)
+    # solve with conjugate gradient
+    z_y = w_y + A(z_x)
     return z_x, z_y
 
-def factorize(A, b, c, cache):
-    """Factorize M and compute g = M^{-1}h."""
-    n = A.get_shape()[1]
-    ATA = tf.matmul(A, A, transpose_a=True)
-    I = tf.constant(np.eye(n), dtype=tf.float32)
-    L = tf.cholesky(I + ATA)
-    g_x, g_y = solve_linear(A, L, c, b)
-
+def init_linear(A, AT, b, c, cache):
+    """Compute g = M^{-1}h."""
+    g_x, g_y = solve_linear(A, AT, c, b)
     return tf.group(
-        cache.L.assign(L),
         cache.g_x.assign(g_x),
         cache.g_y.assign(g_y))
 
-def iteration(A, b, c, dims, cache, u, v):
+def iteration(A, AT, bs, cs, cones, cache, u, v):
     """A single SCS iteration."""
     # u_tilde: solve linear system
     w_x = u.x + v.r
     w_y = u.y + v.s
     w_tau = u.tau + v.kappa
 
-    z_x, z_y = solve_linear(A, cache.L, w_x, w_y)
+    z_x, z_y = solve_linear(A, AT, w_x, w_y)
     g_dot_w = dot(cache.g_x, w_x) + dot(cache.g_y, w_y)
     g_dot_h = dot(cache.g_x, c)   + dot(cache.g_y, b)
     alpha = (w_tau*g_dot_h - dot(z_x, c) - dot(z_y, b))/(1 + g_dot_h) - w_tau
@@ -73,7 +56,7 @@ def iteration(A, b, c, dims, cache, u, v):
 
     # u: cone projection
     u_x = u_tilde_x - v.r
-    u_y = proj_dual_cone(u_tilde_y - v.s, dims)
+    u_y = proj_dual_cone(u_tilde_y - v.s, cones)
     u_tau = proj_nonnegative(u_tilde_tau - v.kappa)
 
     # v: dual update
@@ -100,44 +83,30 @@ def residuals(A, b, c, u, v):
     b_dot_y = dot(b, y)
     return p_norm, d_norm, c_dot_x, b_dot_y, x, y, s
 
-def solve_scs_tf(data, iterations):
+def solve(cvxpy_problem, max_iters=10, trace=False):
     """Create SCS tensorflow graph and solve."""
-    # inputs
-    m, n = data["A"].shape
-    A = tf.placeholder(tf.float32, shape=(m, n))
-    b = tf.placeholder(tf.float32, shape=(m, 1))
-    c = tf.placeholder(tf.float32, shape=(n, 1))
+    problem = TensorProblem(cvxpy_problem)
 
     # variables
     u = PrimalVars(
-        tf.Variable(tf.expand_dims(tf.zeros(n), 1)),
-        tf.Variable(tf.expand_dims(tf.zeros(m), 1)),
+        tensor_dict_var_like(ci),
+        tensor_dict_var_like(bi),
         tf.Variable(tf.expand_dims(tf.ones(1), 1)))
     v = DualVars(
-        tf.Variable(tf.expand_dims(tf.zeros(n), 1)),
-        tf.Variable(tf.expand_dims(tf.zeros(m), 1)),
+        tensor_dict_var_like(ci),
+        tensor_dict_var_like(bi),
         tf.Variable(tf.expand_dims(tf.ones(1), 1)))
 
     # cache
     cache = Cache(
-        tf.Variable(tf.zeros((n, n))),
-        tf.Variable(tf.expand_dims(tf.zeros(n), 1)),
-        tf.Variable(tf.expand_dims(tf.zeros(m), 1)))
+        tensor_dict_var_like(ci),
+        tensor_dict_var_like(bi))
 
     # ops
-    init = tf.initialize_all_variables()
-    factorize_op = factorize(A, b, c, cache)
-    iteration_op = iteration(A, b, c, data["dims"], cache, u, v)
-    p_norm, d_norm, c_dot_x, b_dot_y, x, y, s = residuals(A, b, c, u, v)
-
-    # solve with tensorflow
-    feed_dict = {
-        A: data["A"].todense(),
-        b: data["b"].reshape(-1,1),
-        c: data["c"].reshape(-1,1),
-    }
-    b_norm = np.linalg.norm(data["b"])
-    c_norm = np.linalg.norm(data["c"])
+    init_variables_op = tf.initialize_all_variables()
+    init_linear_op = init_linear(problem, cache)
+    iteration_op = iteration(problem, cache, u, v)
+    residuals = compute_residuals(problem, u, v)
 
     if trace:
         run_options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
@@ -145,10 +114,10 @@ def solve_scs_tf(data, iterations):
 
     t0 = time.time()
     with tf.Session() as sess:
-        sess.run(init)
-        sess.run(factorize_op, feed_dict=feed_dict)
+        sess.run(init_variables_op)
+        sess.run(init_linear_op)
 
-        for k in xrange(iterations):
+        for k in xrange(max_iters):
             if trace:
                 sess.run(iteration_op, feed_dict=feed_dict, options=run_options,
                          run_metadata=run_metadata)
@@ -158,13 +127,16 @@ def solve_scs_tf(data, iterations):
                 with open("scs_tf_iter_%d.json" % k, "w") as f:
                     f.write(ctf)
             else:
-                sess.run(iteration_op, feed_dict=feed_dict)
+                sess.run(iteration)
 
             if k % 20 == 0:
                 # compute residuals
-                p_norm0, d_norm0, c_dot_x0, b_dot_y0, tau0, kappa0 = sess.run(
-                    [p_norm, d_norm, c_dot_x, b_dot_y, u.tau, v.kappa],
-                    feed_dict=feed_dict)
+                p_norm0, d_norm0, c_dot_x0, b_dot_y0, tau0, kappa0 = sess.run([
+                    residuals.p_norm,
+                    residuals.d_norm,
+                    residuals.c_dot_x,
+                    residuals.b_dot_y,
+                    u.tau, v.kappa])
 
                 g = c_dot_x0 + b_dot_y0
                 print "k=%d, ||p||=%.4e, ||d||=%.4e, |g|=%.4e, tau=%.4e, kappa=%.4e" % (

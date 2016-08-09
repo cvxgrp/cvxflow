@@ -38,6 +38,7 @@ def expected_cone_projection(x, n, dims):
 def test_scs():
     prob = form_lp(5,10)
     data = prob.get_problem_data(cvx.SCS)
+
     m, n = data["A"].shape
 
     # input data
