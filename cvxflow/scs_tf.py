@@ -7,56 +7,58 @@ import cvxpy as cvx
 import numpy as np
 import tensorflow as tf
 
-from cvxflow.tf_problem import *
+from cvxflow import conjugate_gradient
+from cvxflow.problem import TensorProblem
+from cvxflow.tf_util import dot, norm
+from cvxflow.cones import proj_nonnegative, proj_cone
 
 PrimalVars = namedtuple("PrimalVars", ["x", "y", "tau"])
 DualVars = namedtuple("DualVars", ["r", "s", "kappa"])
 Cache = namedtuple("Cache", ["g_x", "g_y"])
 Residuals = namedtuple("Residuals", ["p_norm", "d_norm", "c_dot_x", "b_dot_y"])
 
-def proj_nonnegative(x):
-    return tf.maximum(x, tf.zeros_like(x))
-
-def proj_dual_cone(x, cones):
-    pass
-
-def solve_scs_linear(A, AT, w_x, w_y):
+def solve_scs_linear(problem, w_x, w_y):
     """Solve the SCS linear system using conjugate gradient.
 
     z_x = (I + A'A)^{-1}(w_x - A'w_y)
     z_y = w_y + Az_x
     """
-    rhs = w_x - AT(w_y)
-    z_x = solve_cg(lambda x: x + AT(A(x)), rhs)
-    z_y = w_y + A(z_x)
+    def M(x):
+        return x + problem.AT(problem.A(x))
+    z_x_init = tf.zeros((problem.n, 1), dtype=tf.float64)
+    z_x = conjugate_gradient.solve(M, w_x - problem.AT(w_y), z_x_init)
+    z_y = w_y + problem.A(z_x)
     return z_x, z_y
 
-def init_linear(A, AT, b, c, cache):
+def init_scs(problem, cache):
     """Compute g = M^{-1}h."""
-    g_x, g_y = solve_linear(A, AT, c, b)
+    g_x, g_y = solve_scs_linear(problem, problem.c, problem.b)
     return tf.group(
         cache.g_x.assign(g_x),
         cache.g_y.assign(g_y))
 
-def iteration(A, AT, bs, cs, cones, cache, u, v):
+def iteration(problem, cache, u, v):
     """A single SCS iteration."""
     # u_tilde: solve linear system
     w_x = u.x + v.r
     w_y = u.y + v.s
     w_tau = u.tau + v.kappa
 
-    z_x, z_y = solve_linear(A, AT, w_x, w_y)
+    z_x, z_y = solve_scs_linear(problem, w_x, w_y)
     g_dot_w = dot(cache.g_x, w_x) + dot(cache.g_y, w_y)
-    g_dot_h = dot(cache.g_x, c)   + dot(cache.g_y, b)
-    alpha = (w_tau*g_dot_h - dot(z_x, c) - dot(z_y, b))/(1 + g_dot_h) - w_tau
+    g_dot_h = dot(cache.g_x, problem.c) + dot(cache.g_y, problem.b)
+    alpha = ((w_tau*g_dot_h -
+              dot(z_x, problem.c) -
+              dot(z_y, problem.b))/(1 + g_dot_h) - w_tau)
 
     u_tilde_x = z_x + alpha*cache.g_x
     u_tilde_y = z_y + alpha*cache.g_y
-    u_tilde_tau = w_tau + dot(c, u_tilde_x) + dot(b, u_tilde_y)
+    u_tilde_tau = w_tau + dot(problem.c, u_tilde_x) + dot(problem.b, u_tilde_y)
 
     # u: cone projection
+    cone_slices = [(c.cone, c.slice) for c in problem.constr_info]
     u_x = u_tilde_x - v.r
-    u_y = proj_dual_cone(u_tilde_y - v.s, cones)
+    u_y = proj_cone(cone_slices, u_tilde_y - v.s, dual=True)
     u_tau = proj_nonnegative(u_tilde_tau - v.kappa)
 
     # v: dual update
@@ -72,39 +74,35 @@ def iteration(A, AT, bs, cs, cones, cache, u, v):
         v.s.assign(v_s),
         v.kappa.assign(v_kappa))
 
-def residuals(A, b, c, u, v):
+def residuals(problem, u, v):
     """SCS residuals and duality gap."""
     x = u.x / u.tau
     y = u.y / u.tau
     s = v.s / u.tau
-    p_norm = norm(tf.matmul(A, x) + s - b)
-    d_norm = norm(tf.matmul(A, y, transpose_a=True) + c)
-    c_dot_x = dot(c, x)
-    b_dot_y = dot(b, y)
-    return p_norm, d_norm, c_dot_x, b_dot_y, x, y, s
+    p_norm = norm(problem.A(x) + s - problem.b)
+    d_norm = norm(problem.AT(y) + problem.c)
+    c_dot_x = dot(problem.c, x)
+    b_dot_y = dot(problem.b, y)
+    return Residuals(p_norm, d_norm, c_dot_x, b_dot_y)
 
-def solve(cvxpy_problem, max_iters=10, trace=False):
-    """Create SCS tensorflow graph and solve."""
-    problem = TensorProblem(cvxpy_problem)
-
-    # variables
+def variables(problem):
     u = PrimalVars(
-        tensor_dict_var_like(ci),
-        tensor_dict_var_like(bi),
-        tf.Variable(tf.expand_dims(tf.ones(1), 1)))
+        tf.Variable(tf.zeros((problem.n, 1), dtype=tf.float64)),
+        tf.Variable(tf.zeros((problem.m, 1), dtype=tf.float64)),
+        tf.Variable(tf.ones((1,1), dtype=tf.float64)))
     v = DualVars(
-        tensor_dict_var_like(ci),
-        tensor_dict_var_like(bi),
-        tf.Variable(tf.expand_dims(tf.ones(1), 1)))
-
-    # cache
+        tf.Variable(tf.zeros((problem.n, 1), dtype=tf.float64)),
+        tf.Variable(tf.zeros((problem.m, 1), dtype=tf.float64)),
+        tf.Variable(tf.ones((1,1), dtype=tf.float64)))
     cache = Cache(
-        tensor_dict_var_like(ci),
-        tensor_dict_var_like(bi))
+        tf.Variable(tf.zeros((problem.n, 1), dtype=tf.float64)),
+        tf.Variable(tf.zeros((problem.m, 1), dtype=tf.float64)))
+    return u, v, cache
 
+def solve(problem, max_iters=10, trace=False):
+    """Create SCS tensorflow graph and solve."""
     # ops
-    init_variables_op = tf.initialize_all_variables()
-    init_linear_op = init_linear(problem, cache)
+    init_scs_op = init_scs(problem, cache)
     iteration_op = iteration(problem, cache, u, v)
     residuals = compute_residuals(problem, u, v)
 
