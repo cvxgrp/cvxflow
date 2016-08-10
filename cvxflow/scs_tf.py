@@ -14,20 +14,20 @@ DualVars = namedtuple("DualVars", ["r", "s", "kappa"])
 Cache = namedtuple("Cache", ["g_x", "g_y"])
 Residuals = namedtuple("Residuals", ["p_norm", "d_norm", "c_dot_x", "b_dot_y"])
 
-def dot(x, y):
-    return tf.matmul(x, y, transpose_a=True)
-
-def norm(x):
-    return tf.sqrt(dot(x, x))
-
 def proj_nonnegative(x):
     return tf.maximum(x, tf.zeros_like(x))
 
-def proj_dual_cone(x, dims):
+def proj_dual_cone(x, cones):
+    pass
 
-def solve_linear(A, AT, w_x, w_y):
+def solve_scs_linear(A, AT, w_x, w_y):
+    """Solve the SCS linear system using conjugate gradient.
+
+    z_x = (I + A'A)^{-1}(w_x - A'w_y)
+    z_y = w_y + Az_x
+    """
     rhs = w_x - AT(w_y)
-    # solve with conjugate gradient
+    z_x = solve_cg(lambda x: x + AT(A(x)), rhs)
     z_y = w_y + A(z_x)
     return z_x, z_y
 
