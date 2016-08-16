@@ -6,20 +6,28 @@ import numpy as np
 
 from cvxflow import cvxpy_expr
 
-x = cvx.Variable(3)
+x_var = cvx.Variable(3)
 EXPRESSIONS = [
-    (cvx.conv([1,2,3], x), [1,2,4])
+    (cvx.conv([1,2,3], x_var), [1,2,4], [1,2,4,6,8])
 ]
 
-def run_tensor(expr, x0):
-    x_t = tf.constant(x0.reshape(-1,1), dtype=tf.float32)
-    expr_t = cvxpy_expr.tensor(expr.canonicalize()[0], {x.id: x_t})
-    x.value = x0
-    with tf.Session() as sess:
-        print sess.run(expr_t)
-        print expr.value
-        assert_allclose(sess.run(expr_t), expr.value)
+def run_tensor(f, x, y):
+    x = np.array(x).reshape(-1,1)
+    y = np.array(y).reshape(-1,1)
 
-def test_tensor_conv():
-    for f, x0 in EXPRESSIONS:
-        yield run_tensor, f, np.array(x0)
+    prob = cvx.Problem(cvx.Minimize(0), [f == 0])
+    A = prob.get_problem_data(cvx.SCS)["A"]
+    xt = tf.constant(x, dtype=tf.float32)
+    yt = tf.constant(y, dtype=tf.float32)
+
+    f = f.canonicalize()[0]
+    Ax = cvxpy_expr.tensor(f, {x_var.id: xt})
+    ATy = cvxpy_expr.adjoint_tensor(f, yt)[x_var.id]
+
+    with tf.Session() as sess:
+        assert_allclose(sess.run(Ax), A*x)
+        assert_allclose(sess.run(ATy), A.T*y)
+
+def test_tensor():
+    for f, x, y in EXPRESSIONS:
+        yield run_tensor, f, x, y

@@ -62,6 +62,8 @@ def tensor_variable(lin_op, value_map):
 def tensor_conv(lin_op, value_map):
     c = tensor(lin_op.data)
     x = tensor(lin_op.args[0], value_map)
+    m = lin_op.data.size[0]
+    n = lin_op.args[0].size[0]
 
     # add padding and flip
     c = tf.concat(0, [tf.zeros((n-1, 1), dtype=tf.float32), c])
@@ -106,15 +108,15 @@ def adjoint_tensor_variable(lin_op, value):
 
 def adjoint_tensor_conv(lin_op, value):
     c = tensor(lin_op.data)
-    m = c.get_shape()[0]
-    n = value.get_shape()[0]-m+1
+    m = lin_op.data.size[0]
+    n = lin_op.args[0].size[0]
 
     return adjoint_tensor(
         lin_op.args[0],
         tf.reshape(
             tf.nn.conv2d(
-                tf.reshape(value, 1, 1, m+n-1, 1),
+                tf.reshape(value, (1, 1, m+n-1, 1)),
                 tf.reshape(c, (1, m, 1, 1)),
                 strides=[1, 1, 1, 1],
                 padding="VALID"),
-            (n, 1))
+            (n, 1)))
