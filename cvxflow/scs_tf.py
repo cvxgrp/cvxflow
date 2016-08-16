@@ -25,7 +25,7 @@ def solve_scs_linear(problem, w_x, w_y):
     """
     def M(x):
         return x + problem.AT(problem.A(x))
-    z_x_init = tf.zeros((problem.n, 1), dtype=tf.float32)
+    z_x_init = tf.zeros_like(w_x)
     z_x = conjugate_gradient.solve(M, w_x - problem.AT(w_y), z_x_init)
     z_y = w_y + problem.A(z_x)
     return z_x, z_y
@@ -56,9 +56,8 @@ def iteration(problem, cache, u, v):
     u_tilde_tau = w_tau + dot(problem.c, u_tilde_x) + dot(problem.b, u_tilde_y)
 
     # u: cone projection
-    cone_slices = [(c.cone, c.slice) for c in problem.constr_info]
     u_x = u_tilde_x - v.r
-    u_y = proj_cone(cone_slices, u_tilde_y - v.s, dual=True)
+    u_y = proj_cone(problem.cone_slices, u_tilde_y - v.s, dual=True)
     u_tau = proj_nonnegative(u_tilde_tau - v.kappa)
 
     # v: dual update
@@ -86,17 +85,21 @@ def residuals(problem, u, v):
     return Residuals(p_norm, d_norm, c_dot_x, b_dot_y)
 
 def variables(problem):
+    m = int(problem.b.get_shape()[0])
+    n = int(problem.c.get_shape()[0])
+
     u = PrimalVars(
-        tf.Variable(tf.zeros((problem.n, 1), dtype=tf.float32)),
-        tf.Variable(tf.zeros((problem.m, 1), dtype=tf.float32)),
+        tf.Variable(tf.zeros((n,1), dtype=tf.float32)),
+        tf.Variable(tf.zeros((m,1), dtype=tf.float32)),
         tf.Variable(tf.ones((1,1), dtype=tf.float32)))
     v = DualVars(
-        tf.Variable(tf.zeros((problem.n, 1), dtype=tf.float32)),
-        tf.Variable(tf.zeros((problem.m, 1), dtype=tf.float32)),
+        tf.Variable(tf.zeros((n,1), dtype=tf.float32)),
+        tf.Variable(tf.zeros((m,1), dtype=tf.float32)),
         tf.Variable(tf.ones((1,1), dtype=tf.float32)))
     cache = Cache(
-        tf.Variable(tf.zeros((problem.n, 1), dtype=tf.float32)),
-        tf.Variable(tf.zeros((problem.m, 1), dtype=tf.float32)))
+        tf.Variable(tf.zeros((n,1), dtype=tf.float32)),
+        tf.Variable(tf.zeros((m,1), dtype=tf.float32)))
+
     return u, v, cache
 
 def solve(problem, max_iters=10, trace=False):

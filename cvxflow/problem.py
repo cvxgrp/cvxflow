@@ -33,7 +33,7 @@ def get_constraint_tensors(constraints):
     """Get expression for Ax + b."""
     A_exprs = [constr.expr for constr in tree_mat.prune_constants(constraints)]
     b = vstack(
-        [vec(tf.constant(-tree_mat.mul(constr.expr, {})))
+        [vec(tf.constant(-tree_mat.mul(constr.expr, {}), dtype=tf.float32))
          for constr in constraints])
     return A_exprs, b
 
@@ -79,3 +79,23 @@ class TensorProblem(object):
         return vstack([vec(x_map[var_id]) for var_id, var_offset in
                        sorted(self.sym_data.var_offsets.items(),
                               key=lambda (var_id, var_offset): var_offset)])
+
+    @property
+    def cone_slices(self):
+        dims = self.sym_data.dims
+        retval = []
+        i = 0
+
+        if dims[s.EQ_DIM]:
+            retval.append((cones.ZERO, slice(i, i+dims[s.EQ_DIM])))
+            i += dims[s.EQ_DIM]
+
+        if dims[s.LEQ_DIM]:
+            retval.append((cones.NONNEGATIVE, slice(i, i+dims[s.LEQ_DIM])))
+            i += dims[s.LEQ_DIM]
+
+        for qi in dims[s.SOC_DIM]:
+            retval.append((cones.SECOND_ORDER, slice(i, i+qi)))
+            i += qi
+
+        return retval
