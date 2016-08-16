@@ -39,7 +39,7 @@ def deconvolution():
     return cvx.Problem(cvx.Minimize(f), [x >= 0])
 
 PROBLEMS = [
-    #deconvolution,
-    #least_squares,
+    deconvolution,
+    least_squares,
     linear_program,
 ]

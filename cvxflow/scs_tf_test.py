@@ -26,7 +26,15 @@ def expected_subspace_projection(data, x):
     return np.linalg.solve(np.eye(m+n+1) + Q, x)
 
 def proj_second_order(x):
-    return x
+    s, v = x[:1,:], x[1:, :]
+    norm_v = np.linalg.norm(v)
+
+    if norm_v <= -s:
+        return np.zeros(x.shape)
+    elif norm_v <= s:
+        return x
+    else:
+        return 0.5*(1 + s/norm_v)*np.vstack((norm_v, v))
 
 def expected_cone_projection(data, x):
     dims = data["dims"]
@@ -81,13 +89,13 @@ def run_problem(cvx_problem):
         u0 = expected_cone_projection(data, u_tilde0 - v0)
         v0 = v0 - u_tilde0 + u0
         sess.run(iteration_op)
-        assert_allclose(u0, sess.run(u_vec), rtol=0, atol=1e-6)
-        assert_allclose(v0, sess.run(v_vec), rtol=0, atol=1e-6)
+        assert_allclose(u0, sess.run(u_vec), rtol=1e-2, atol=1e-4)
+        assert_allclose(v0, sess.run(v_vec), rtol=1e-2, atol=1e-4)
 
         print "second iteration"
         u_tilde0 = expected_subspace_projection(data, u0 + v0)
         u0 = expected_cone_projection(data, u_tilde0 - v0)
         v0 = v0 - u_tilde0 + u0
         sess.run(iteration_op)
-        assert_allclose(u0, sess.run(u_vec), rtol=0, atol=1e-6)
-        assert_allclose(v0, sess.run(v_vec), rtol=0, atol=1e-6)
+        assert_allclose(u0, sess.run(u_vec), rtol=1e-2, atol=1e-4)
+        assert_allclose(v0, sess.run(v_vec), rtol=1e-2, atol=1e-4)
