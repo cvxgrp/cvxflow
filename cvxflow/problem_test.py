@@ -20,7 +20,6 @@ def run_problem(problem):
     init = tf.initialize_all_variables()
     with tf.Session() as sess:
         sess.run(init)
-
         assert_allclose(sess.run(problem.b), data["b"].reshape(-1,1), rtol=0, atol=1e-6)
         assert_allclose(sess.run(problem.c), data["c"].reshape(-1,1), rtol=0, atol=1e-6)
         assert_allclose(sess.run(problem.A(x)), data["A"]*x0, rtol=0, atol=1e-6)

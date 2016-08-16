@@ -40,6 +40,6 @@ def deconvolution():
 
 PROBLEMS = [
     deconvolution,
-    #least_squares,
-    #linear_program,
+    least_squares,
+    linear_program,
 ]

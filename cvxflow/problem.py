@@ -65,10 +65,6 @@ class TensorProblem(object):
             var_offset = self.sym_data.var_offsets[var_id]
             idx = slice(var_offset, var_offset+var_size[0]*var_size[1])
             xs[var_id] = mat(x[idx,:], var_size)
-
-        for Ai in self.A_exprs:
-            print Ai
-
         return vstack([vec(cvxpy_expr.tensor(Ai, xs)) for Ai in self.A_exprs])
 
     def AT(self, y):
