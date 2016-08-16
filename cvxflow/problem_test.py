@@ -5,19 +5,10 @@ import tensorflow as tf
 from numpy.testing import assert_allclose
 
 from cvxflow.problem import TensorProblem
+from cvxflow.problem_testutil import PROBLEMS
 
-def linear_program():
-    np.random.seed(0)
-    m = 5
-    n = 10
-    A = np.abs(np.random.randn(m,n))
-    b = A.dot(np.abs(np.random.randn(n)))
-    c = np.random.rand(n)
-    x = cvx.Variable(n)
-    return cvx.Problem(cvx.Minimize(c.T*x), [A*x == b, x >= 0])
-
-def test_linear():
-    cvx_problem = linear_program()
+def run_problem(problem):
+    cvx_problem = problem()
     data = cvx_problem.get_problem_data(cvx.SCS)
     m, n = data["A"].shape
     x0 = np.random.randn(n,1)
@@ -33,3 +24,7 @@ def test_linear():
         assert_allclose(sess.run(problem.c), data["c"].reshape(-1,1))
         assert_allclose(sess.run(problem.A(x)), data["A"]*x0)
         assert_allclose(sess.run(problem.AT(y)), data["A"].T*y0)
+
+def test_problems():
+    for problem in PROBLEMS:
+        yield run_problem, problem

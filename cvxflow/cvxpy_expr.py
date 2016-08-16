@@ -14,14 +14,23 @@ def sum_dicts(dicts):
                 sum_dict[id_] = value
     return sum_dict
 
+def is_scalar(x):
+    for dim in x.get_shape():
+        if dim != 1:
+            return False
+    return True
+
 def tensor(lin_op, value_map={}):
     f_name = "tensor_" + lin_op.type
     return globals()[f_name](lin_op, value_map)
 
 def tensor_mul(lin_op, value_map):
-    return tf.matmul(
-        tensor(lin_op.data, value_map),
-        tensor(lin_op.args[0], value_map))
+    a = tensor(lin_op.data, value_map)
+    b = tensor(lin_op.args[0], value_map)
+    if is_scalar(a) or is_scalar(b):
+        return tf.mul(a, b)
+    else:
+        return tf.matmul(a, b)
 
 def tensor_sum(lin_op, value_map):
     if len(lin_op.args) == 1:
@@ -37,7 +46,7 @@ def tensor_neg(lin_op, value_map):
         tensor(lin_op.args[0], value_map))
 
 def tensor_promote(lin_op, value_map):
-    # NOTE(mwytock): tensorflow handles promotion automatically
+    # NOTE(mwytock): promotion handled directly in mul and add
     return tensor(lin_op.args[0], value_map)
 
 def tensor_dense_const(lin_op, value_map):
@@ -55,9 +64,15 @@ def adjoint_tensor(lin_op, value):
     return globals()[f_name](lin_op, value)
 
 def adjoint_tensor_mul(lin_op, value):
-    return adjoint_tensor(
-        lin_op.args[0],
-        tf.matmul(tensor(lin_op.data), value, transpose_a=True))
+    a = tensor(lin_op.data)
+    b = value
+    if is_scalar(a):
+        c = tf.mul(a, b)
+    elif is_scalar(b):
+        c = tf.mul(tf.transpose(a), b)
+    else:
+        c = tf.matmul(a, b, transpose_a=True)
+    return adjoint_tensor(lin_op.args[0], c)
 
 def adjoint_tensor_neg(lin_op, value):
     return adjoint_tensor(lin_op.args[0], -value)

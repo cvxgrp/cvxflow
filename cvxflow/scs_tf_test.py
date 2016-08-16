@@ -9,16 +9,6 @@ from cvxflow import scs_tf
 from cvxflow.problem import TensorProblem
 from cvxflow.tf_util import vstack
 
-def linear_program():
-    np.random.seed(0)
-    m = 5
-    n = 10
-    A = np.abs(np.random.randn(m,n))
-    b = A.dot(np.abs(np.random.randn(n)))
-    c = np.random.rand(n) + 0.5
-    x = cvx.Variable(n)
-    return cvx.Problem(cvx.Minimize(c.T*x), [A*x == b, x >= 0])
-
 def expected_subspace_projection(data, x):
     A = data["A"].todense()
     b = data["b"].reshape(-1,1)
@@ -43,8 +33,11 @@ def expected_cone_projection(data, x):
     x[-1] = np.maximum(x[-1], 0)
     return x
 
-def test_scs():
-    cvx_problem = linear_program()
+def test_problems():
+    for problem in PROBLEMS:
+        yield run_problem, problem()
+
+def run_problem(cvx_problem):
     problem = TensorProblem(cvx_problem)
     data = cvx_problem.get_problem_data(cvx.SCS)
 
@@ -71,7 +64,7 @@ def test_scs():
         assert_allclose(u0, sess.run(u_vec))
         assert_allclose(v0, sess.run(v_vec))
 
-        # print "first iteration"
+        print "first iteration"
         u_tilde0 = expected_subspace_projection(data, u0 + v0)
         u0 = expected_cone_projection(data, u_tilde0 - v0)
         v0 = v0 - u_tilde0 + u0
@@ -79,7 +72,7 @@ def test_scs():
         assert_allclose(u0, sess.run(u_vec))
         assert_allclose(v0, sess.run(v_vec))
 
-        # print "second iteration"
+        print "second iteration"
         u_tilde0 = expected_subspace_projection(data, u0 + v0)
         u0 = expected_cone_projection(data, u_tilde0 - v0)
         v0 = v0 - u_tilde0 + u0
