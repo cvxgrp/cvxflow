@@ -25,7 +25,7 @@ def solve_scs_linear(problem, w_x, w_y):
     """
     def M(x):
         return x + problem.AT(problem.A(x))
-    z_x_init = tf.zeros((problem.n, 1), dtype=tf.float64)
+    z_x_init = tf.zeros((problem.n, 1), dtype=tf.float32)
     z_x = conjugate_gradient.solve(M, w_x - problem.AT(w_y), z_x_init)
     z_y = w_y + problem.A(z_x)
     return z_x, z_y
@@ -87,16 +87,16 @@ def residuals(problem, u, v):
 
 def variables(problem):
     u = PrimalVars(
-        tf.Variable(tf.zeros((problem.n, 1), dtype=tf.float64)),
-        tf.Variable(tf.zeros((problem.m, 1), dtype=tf.float64)),
-        tf.Variable(tf.ones((1,1), dtype=tf.float64)))
+        tf.Variable(tf.zeros((problem.n, 1), dtype=tf.float32)),
+        tf.Variable(tf.zeros((problem.m, 1), dtype=tf.float32)),
+        tf.Variable(tf.ones((1,1), dtype=tf.float32)))
     v = DualVars(
-        tf.Variable(tf.zeros((problem.n, 1), dtype=tf.float64)),
-        tf.Variable(tf.zeros((problem.m, 1), dtype=tf.float64)),
-        tf.Variable(tf.ones((1,1), dtype=tf.float64)))
+        tf.Variable(tf.zeros((problem.n, 1), dtype=tf.float32)),
+        tf.Variable(tf.zeros((problem.m, 1), dtype=tf.float32)),
+        tf.Variable(tf.ones((1,1), dtype=tf.float32)))
     cache = Cache(
-        tf.Variable(tf.zeros((problem.n, 1), dtype=tf.float64)),
-        tf.Variable(tf.zeros((problem.m, 1), dtype=tf.float64)))
+        tf.Variable(tf.zeros((problem.n, 1), dtype=tf.float32)),
+        tf.Variable(tf.zeros((problem.m, 1), dtype=tf.float32)))
     return u, v, cache
 
 def solve(problem, max_iters=10, trace=False):

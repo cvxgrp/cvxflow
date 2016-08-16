@@ -25,7 +25,7 @@ def deconvolution():
     np.random.seed(0)
     n = 10
     k = 3
-    sigma = n/10
+    sigma = n/10.
 
     c = (np.exp(-np.arange(-n/2., n/2.)**2./(2*sigma**2))/
          np.sqrt(2*sigma**2*np.pi))
@@ -39,7 +39,7 @@ def deconvolution():
     return cvx.Problem(cvx.Minimize(f), [x >= 0])
 
 PROBLEMS = [
-    #deconvolution,
-    least_squares,
+    deconvolution,
+    #least_squares,
     #linear_program,
 ]
