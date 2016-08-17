@@ -4,21 +4,24 @@ import tensorflow as tf
 
 from cvxflow.tf_util import dot
 
-def solve(A, b, x, tol=1e-10):
-    def body(x, r, p, r_norm_sq):
-        Ap = A(p)
-        alpha = r_norm_sq / dot(p, Ap)
-        x = x + alpha*p
-        r = r - alpha*Ap
-        r_norm_sq_prev = r_norm_sq
-        r_norm_sq = dot(r, r)
-        beta = r_norm_sq / r_norm_sq_prev
-        p = r + beta*p
-        return (x, r, p, r_norm_sq)
+def conjugate_gradient_solve(A, b, x_init, tol=1e-12, name=None):
+    """Solve linear equation `A x = b`, using conjugate gradient."""
 
-    def cond(x, r, p, r_norm_sq):
-        return tf.sqrt(r_norm_sq) > tol
+    with tf.op_scope([A, b, x_init], name, "conjugate_gradient_solve"):
+        def body(x, k, r_norm_sq, r, p):
+            Ap = A(p)
+            alpha = r_norm_sq / dot(p, Ap)
+            x = x + alpha*p
+            r = r - alpha*Ap
+            r_norm_sq_prev = r_norm_sq
+            r_norm_sq = dot(r, r)
+            beta = r_norm_sq / r_norm_sq_prev
+            p = r + beta*p
+            return (x, k+1, r_norm_sq, r, p)
 
-    r = b - A(x)
-    loop_vars = (x, r, r, dot(r, r))
-    return tf.while_loop(cond, body, loop_vars)[0]
+        def cond(x, k, r_norm_sq, r, p):
+            return r_norm_sq > tol
+
+        r = b - A(x_init)
+        loop_vars = (x_init, tf.constant(0), dot(r, r), r, r)
+        return tf.while_loop(cond, body, loop_vars)[:3]

@@ -2,8 +2,10 @@
 
 import numpy as np
 import tensorflow as tf
+from numpy.testing import assert_allclose
 
-from cvxflow import conjugate_gradient
+from cvxflow.conjugate_gradient import *
+
 
 def test_solve():
     np.random.seed(0)
@@ -18,8 +20,8 @@ def test_solve():
     x0 = np.linalg.solve(A0, b0)
 
     b = tf.constant(b0, dtype=tf.float32)
-    x = conjugate_gradient.solve(A, b, tf.zeros((n,1), dtype=tf.float32))
+    x, _, _ = conjugate_gradient_solve(A, b, tf.zeros((n,1), dtype=tf.float32))
     init = tf.initialize_all_variables()
     with tf.Session() as sess:
         sess.run(init)
-        np.testing.assert_allclose(sess.run(x), x0, rtol=0, atol=1e-6)
+        assert_allclose(sess.run(x), x0, rtol=0, atol=1e-6)
