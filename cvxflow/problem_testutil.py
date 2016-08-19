@@ -21,7 +21,7 @@ def linear_program():
     x = cvx.Variable(n)
     return cvx.Problem(cvx.Minimize(c.T*x), [A*x == b, x >= 0])
 
-def deconvolution():
+def nonnegative_deconvolution():
     np.random.seed(0)
     n = 10
     k = 3
@@ -39,7 +39,7 @@ def deconvolution():
     return cvx.Problem(cvx.Minimize(f), [x >= 0])
 
 PROBLEMS = [
-    deconvolution,
+    nonnegative_deconvolution,
     least_squares,
     linear_program,
 ]

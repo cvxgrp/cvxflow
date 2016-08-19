@@ -21,13 +21,6 @@ from cvxflow import cvxpy_expr
 from cvxflow.cvxpy_expr import sum_dicts
 from cvxflow.tf_util import vec, mat, vstack
 
-# CONE_MAP = {
-#     cvx.lin_ops.lin_constraints.LinEqConstr: cones.ZERO,
-#     cvx.lin_ops.lin_constraints.LinLeqConstr: cones.NONNEGATIVE,
-#     cvx.constraints.second_order.SOC: cones.SECOND_ORDER,
-#     "": cones.EXPONENTIAL,
-#     "": cones.SEMIDEFINITE,
-# }
 
 def get_constraint_tensors(constraints):
     """Get expression for Ax + b."""
@@ -37,27 +30,33 @@ def get_constraint_tensors(constraints):
          for constr in constraints])
     return A_exprs, b
 
-def get_objective_tensor(sym_data):
+def get_objective_tensor(var_ids, sym_data):
     """Get objective tensor via gradient of c'x."""
-    var_ids, var_sizes = zip(*sym_data.var_sizes.items())
-    xs = [tf.Variable(tf.zeros(x, dtype=tf.float32)) for x in var_sizes]
+    xs = [tf.Variable(tf.zeros(sym_data.var_sizes[var_id], dtype=tf.float32))
+          for var_id in var_ids]
     xs_map = dict(zip((var_id for var_id in var_ids), xs))
     obj_t = cvxpy_expr.tensor(sym_data.objective, xs_map)
 
     # get gradient, handling None values
-    return vstack([vec(ci) if ci is not None
-                   else vec(tf.zeros(var_sizes[i], dtype=tf.float32))
-                   for i, ci in enumerate(tf.gradients(obj_t, xs))])
+    return vstack([
+        vec(ci) if ci is not None
+        else vec(tf.zeros(sym_data.var_sizes[var_ids[i]], dtype=tf.float32))
+        for i, ci in enumerate(tf.gradients(obj_t, xs))])
 
 class TensorProblem(object):
     def __init__(self, cvx_problem):
         objective, constraints = cvx_problem.canonicalize()
         self.sym_data = SymData(objective, constraints, SOLVERS[s.SCS])
+
+        # sort variables by offset
+        self.var_ids = [var_id for var_id, var_offset in sorted(
+            self.sym_data.var_offsets.items(),
+            key=lambda (var_id, var_offset): var_offset)]
         self.constraints = (self.sym_data.constr_map[s.EQ] +
                             self.sym_data.constr_map[s.LEQ])
 
         self.A_exprs, self.b = get_constraint_tensors(self.constraints)
-        self.c = get_objective_tensor(self.sym_data)
+        self.c = get_objective_tensor(self.var_ids, self.sym_data)
 
     def A(self, x):
         xs = {}
@@ -76,9 +75,7 @@ class TensorProblem(object):
             offset += constr.size[0]*constr.size[1]
         x_map = sum_dicts(cvxpy_expr.adjoint_tensor(Ai, ys[i])
                           for i, Ai in enumerate(self.A_exprs))
-        return vstack([vec(x_map[var_id]) for var_id, var_offset in
-                       sorted(self.sym_data.var_offsets.items(),
-                              key=lambda (var_id, var_offset): var_offset)])
+        return vstack([vec(x_map[var_id]) for var_id in self.var_ids])
 
     @property
     def cone_slices(self):

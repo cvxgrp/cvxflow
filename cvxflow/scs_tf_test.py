@@ -53,49 +53,92 @@ def expected_cone_projection(data, x):
     x[-1] = np.maximum(x[-1], 0)
     return x
 
-def test_problems():
+def test_iterates():
     for problem in PROBLEMS:
-        yield run_problem, problem()
+        yield run_iterates, problem
 
-def run_problem(cvx_problem):
-    problem = TensorProblem(cvx_problem)
-    data = cvx_problem.get_problem_data(cvx.SCS)
+class TestTensorProblem(object):
+    def __init__(self, orig):
+        self.orig = orig
+        self.sigma = 1.
+        self.rho = 1.
+        self.b = self.sigma * orig.b
+        self.c = self.rho * orig.c
 
-    # Compare with manually implemented SCS iterations
-    m, n = data["A"].shape
-    u0 = np.zeros((m+n+1,1))
-    v0 = np.zeros((m+n+1,1))
-    u0[-1] = 1
-    v0[-1] = 1
+    def A(self, x):
+        return self.orig.A(x)
 
-    # Run two iterations
-    u, v, cache = scs_tf.variables(problem)
-    u_vec = vstack([u.x, u.y, u.tau])
-    v_vec = vstack([v.r, v.s, v.kappa])
+    def AT(self, y):
+        return self.orig.AT(y)
 
-    init_op = tf.initialize_all_variables()
-    init_scs_op = scs_tf.init_scs(problem, cache)
-    iteration_op = scs_tf.iteration(problem, cache, u, v)
-    with tf.Session() as sess:
-        sess.run(init_op)
-        sess.run(init_scs_op)
+    @property
+    def cone_slices(self):
+        return self.orig.cone_slices
 
-        print "initialization"
-        assert_allclose(u0, sess.run(u_vec))
-        assert_allclose(v0, sess.run(v_vec))
+class IterateTest(tf.test.TestCase):
+    pass
 
-        print "first iteration"
-        u_tilde0 = expected_subspace_projection(data, u0 + v0)
-        u0 = expected_cone_projection(data, u_tilde0 - v0)
-        v0 = v0 - u_tilde0 + u0
-        sess.run(iteration_op)
-        assert_allclose(u0, sess.run(u_vec), rtol=1e-2, atol=1e-4)
-        assert_allclose(v0, sess.run(v_vec), rtol=1e-2, atol=1e-4)
+def get_iterate_test(problem_gen):
+    def test(self):
+        np.random.seed(0)
+        cvx_problem = problem_gen()
 
-        print "second iteration"
-        u_tilde0 = expected_subspace_projection(data, u0 + v0)
-        u0 = expected_cone_projection(data, u_tilde0 - v0)
-        v0 = v0 - u_tilde0 + u0
-        sess.run(iteration_op)
-        assert_allclose(u0, sess.run(u_vec), rtol=1e-2, atol=1e-4)
-        assert_allclose(v0, sess.run(v_vec), rtol=1e-2, atol=1e-4)
+        problem = TestTensorProblem(TensorProblem(cvx_problem))
+        data = cvx_problem.get_problem_data(cvx.SCS)
+
+        # Compare with manually implemented SCS iterations
+        m, n = data["A"].shape
+        u0 = np.zeros((m+n+1,1))
+        v0 = np.zeros((m+n+1,1))
+        u0[-1] = 1
+        v0[-1] = 1
+
+        # variables
+        u, v = scs_tf.create_variables(problem)
+        cache = scs_tf.create_cache(problem)
+        counters = scs_tf.create_counters()
+
+        # ops
+        init_op = tf.initialize_all_variables()
+        init_cache_op = scs_tf.init_cache(problem, cache)
+        iterate_op = scs_tf.iterate(problem, u, v, cache, counters)
+        residuals = scs_tf.compute_residuals(problem, u, v)
+
+        # Run two iterations
+        u_vec = vstack([u.x, u.y, u.tau])
+        v_vec = vstack([v.r, v.s, v.kappa])
+
+        with self.test_session():
+            init_op.run()
+            init_cache_op.run()
+
+            tf.logging.info("initialization")
+            assert_allclose(u0, u_vec.eval())
+            assert_allclose(v0, v_vec.eval())
+
+            tf.logging.info("first iteration")
+            iterate_op.run()
+            u_tilde0 = expected_subspace_projection(data, u0 + v0)
+            u0 = expected_cone_projection(data, u_tilde0 - v0)
+            v0 = v0 - u_tilde0 + u0
+            assert_allclose(u0, u_vec.eval(), rtol=0, atol=1e-4)
+            assert_allclose(v0, v_vec.eval(), rtol=0, atol=1e-4)
+
+            u0 = u_vec.eval()
+            v0 = v_vec.eval()
+
+            tf.logging.info("second iteration")
+            iterate_op.run()
+            u_tilde0 = expected_subspace_projection(data, u0 + v0)
+            u0 = expected_cone_projection(data, u_tilde0 - v0)
+            v0 = v0 - u_tilde0 + u0
+            assert_allclose(u0, u_vec.eval(), rtol=0, atol=1e-2)
+            assert_allclose(v0, v_vec.eval(), rtol=0, atol=1e-2)
+
+    return test
+
+if __name__ == "__main__":
+    for problem in PROBLEMS:
+        test_name = "test_%s" % problem.__name__
+        setattr(IterateTest, test_name, get_iterate_test(problem))
+    tf.test.main()
