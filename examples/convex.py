@@ -25,7 +25,7 @@ def nn_deconv(n):
 PROBLEMS = [
     nn_deconv
 ]
-SIZES = [1000] #, 1000] #10000]
+SIZES = [100, 1000, 10000]
 
 
 for prob_func in PROBLEMS:
@@ -35,9 +35,6 @@ for prob_func in PROBLEMS:
 
         np.random.seed(0)
         prob = prob_func(n)
-        A = prob.get_problem_data(cvx.SCS)["A"]
-        print "num_constraints:", A.shape[0]
-        print "nnz:", A.nnz
 
         print "SCS"
         t0 = time.time()
@@ -49,4 +46,9 @@ for prob_func in PROBLEMS:
         t0 = time.time()
         t_prob = TensorProblem(prob)
         print "create_time:", time.time() - t0
-        print "objective: %.2e" % scs_tf.solve(t_prob, max_iters=2500)
+
+        print "tensorflow solve CPU"
+        print "objective: %.2e" % scs_tf.solve(t_prob, max_iters=1000, use_gpu=False)
+
+        print "tensorflow solve GPU"
+        print "objective: %.2e" % scs_tf.solve(t_prob, max_iters=1000)

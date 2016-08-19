@@ -40,7 +40,6 @@ OPERATORS = [
 ]
 SIZES = [1000]
 
-
 def nnz(Ax_expr):
     prob = cvx.Problem(cvx.Minimize(0), [Ax_expr == 0])
     return prob.get_problem_data(cvx.SCS)["A"].nnz
@@ -58,8 +57,8 @@ for op in OPERATORS:
         b0 += sigma*np.random.randn(*b0.shape)
         obj = cvx.sum_squares(Ax_expr - b0) + lam*cvx.sum_squares(x_var)
         prob = cvx.Problem(cvx.Minimize(obj))
-        print "nnz:", nnz(Ax_expr)
 
+        print "nnz:", nnz(Ax_expr)
         print "spsolve"
         t0 = time.time()
         prob.solve(solver=cvx.LS)
@@ -84,10 +83,16 @@ for op in OPERATORS:
         print "init_time: %.2f secs" % (time.time() - t0)
 
         t0 = time.time()
-        with tf.Session() as sess:
+        with tf.Session(config=tf.ConfigProto(device_count={"GPU": 0})) as sess:
             sess.run(init)
             x0, iters0, r_norm_sq0 = sess.run([x, iters, r_norm_sq])
         print "cpu_solve_time: %.2f secs" % (time.time() - t0)
+
+        t0 = time.time()
+        with tf.Session() as sess:
+            sess.run(init)
+            x0, iters0, r_norm_sq0 = sess.run([x, iters, r_norm_sq])
+        print "gpu_solve_time: %.2f secs" % (time.time() - t0)
 
         x_var.value = x0
         print "objective: %.3e" % obj.value
