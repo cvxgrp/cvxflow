@@ -146,7 +146,7 @@ def create_counters():
 
 
 def solve(problem, max_iters=2500, trace=False, eps_primal=1e-3, eps_dual=1e-3,
-          eps_gap=1e-3, use_gpu=True):
+          eps_gap=1e-3, gpu=True):
     """Create SCS tensorflow graph and solve."""
     scaled_problem = ScaledTensorProblem(problem)
 
@@ -161,18 +161,17 @@ def solve(problem, max_iters=2500, trace=False, eps_primal=1e-3, eps_dual=1e-3,
     init_cache_op = init_cache(scaled_problem, cache)
     iterate_op = iterate(scaled_problem, u, v, cache, counters)
     residuals = compute_residuals(scaled_problem, u, v)
-    print "init_time: %.2f secs" % (time.time() - t0)
+    print "graph_build_time: %.2f secs" % (time.time() - t0)
 
     if trace:
         run_options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
         run_metadata = tf.RunMetadata()
 
-    if use_gpu:
+    if gpu:
         config = tf.ConfigProto()
     else:
         config = tf.ConfigProto(device_count={"GPU": 0})
 
-    t0 = time.time()
     with tf.Session(config=config) as sess:
         sess.run(init_op)
         b_norm, c_norm = sess.run([norm(problem.b), norm(problem.c)])
@@ -225,5 +224,4 @@ def solve(problem, max_iters=2500, trace=False, eps_primal=1e-3, eps_dual=1e-3,
 
     print "iterations:", k
     print "avg_cg_iters: %.2f" % (float(total_cg_iters) / float(k))
-    print "solve_time: %.2f secs" % (time.time() - t0)
     return objective

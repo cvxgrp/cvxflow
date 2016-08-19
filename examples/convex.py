@@ -1,11 +1,9 @@
 """Examples of solving convex problems with TensorFlow."""
 
-import numpy as np
 import cvxpy as cvx
+import numpy as np
+import sys
 import time
-
-from cvxflow.problem import TensorProblem
-from cvxflow import scs_tf
 
 def nn_deconv(n):
     sigma = 0.1*n
@@ -36,19 +34,33 @@ for prob_func in PROBLEMS:
         np.random.seed(0)
         prob = prob_func(n)
 
-        print "SCS"
-        t0 = time.time()
-        prob.solve(solver=cvx.SCS, verbose=True)
-        print "solve_time: %.2f secs" % (time.time() - t0)
-        print "objective: %.2e" % prob.objective.value
+        if len(sys.argv) == 2 and sys.argv[1] == "scs":
+            t0 = time.time()
+            prob.solve(solver=cvx.SCS, verbose=True, gpu=True)
+            print "gpu_solve_time: %.2f secs" % (time.time() - t0)
 
-        print "tensorflow"
-        t0 = time.time()
-        t_prob = TensorProblem(prob)
-        print "create_time:", time.time() - t0
+            t0 = time.time()
+            prob.solve(solver=cvx.SCS, verbose=True, gpu=False)
+            print "cpu_solve_time: %.2f secs" % (time.time() - t0)
 
-        print "tensorflow solve CPU"
-        print "objective: %.2e" % scs_tf.solve(t_prob, max_iters=1000, use_gpu=False)
+            t0 = time.time()
+            prob.get_problem_data(cvx.SCS)
+            print "get_problem_data_time: %.2f secs" % (time.time() - t0)
 
-        print "tensorflow solve GPU"
-        print "objective: %.2e" % scs_tf.solve(t_prob, max_iters=1000)
+        else:
+            from cvxflow.problem import TensorProblem
+            from cvxflow import scs_tf
+
+            t0 = time.time()
+            t_prob = TensorProblem(prob)
+            print "problem_time:", time.time() - t0
+
+            t0 = time.time()
+            objective = scs_tf.solve(t_prob, max_iters=2500, gpu=True)
+            print "gpu_solve_time: %.2f secs" % (time.time() - t0)
+            print "objective: %.2e" % objective
+
+            t0 = time.time()
+            objective = scs_tf.solve(t_prob, max_iters=2500, gpu=False)
+            print "cpu_solve_time: %.2f secs" % (time.time() - t0)
+            print "objective: %.2e" % objective
