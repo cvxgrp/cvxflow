@@ -1,14 +1,19 @@
 
 from numpy.testing import assert_allclose
 import cvxpy as cvx
-import tensorflow as tf
 import numpy as np
+import scipy.sparse as sp
+import tensorflow as tf
 
 from cvxflow import cvxpy_expr
 
+np.random.seed(0)
+A_sparse = sp.rand(5, 3, 0.5)
 x_var = cvx.Variable(3)
+
 EXPRESSIONS = [
-    (cvx.conv([1,2,3], x_var), [1,2,4], [1,2,4,6,8])
+    (cvx.conv([1,2,3], x_var), [1,2,4], [1,2,4,6,8]),
+    (A_sparse*x_var, [1,2,4], [1,2,4,6,8]),
 ]
 
 def run_tensor(f, x, y):
