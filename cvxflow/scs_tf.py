@@ -146,7 +146,7 @@ def create_counters():
 
 
 def solve(problem, max_iters=2500, trace=False, eps_primal=1e-3, eps_dual=1e-3,
-          eps_gap=1e-3):
+          eps_gap=1e-3, use_gpu=True):
     """Create SCS tensorflow graph and solve."""
     scaled_problem = ScaledTensorProblem(problem)
 
@@ -167,8 +167,13 @@ def solve(problem, max_iters=2500, trace=False, eps_primal=1e-3, eps_dual=1e-3,
         run_options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
         run_metadata = tf.RunMetadata()
 
+    if use_gpu:
+        config = tf.ConfigProto()
+    else:
+        config = tf.ConfigProto(device_count={"GPU": 0})
+
     t0 = time.time()
-    with tf.Session() as sess:
+    with tf.Session(config=config) as sess:
         sess.run(init_op)
         b_norm, c_norm = sess.run([norm(problem.b), norm(problem.c)])
 
