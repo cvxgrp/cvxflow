@@ -175,8 +175,6 @@ def solve(problem, max_iters=2500, trace=False, eps_primal=1e-3, eps_dual=1e-3,
     with tf.Session(config=config) as sess:
         sess.run(init_op)
         b_norm, c_norm = sess.run([norm(problem.b), norm(problem.c)])
-        print "b_norm:", b_norm
-        print "c_norm:", c_norm
 
         def check_converged_and_print(k):
             p_norm, d_norm, c_dot_x, b_dot_y, tau, kappa = sess.run([
