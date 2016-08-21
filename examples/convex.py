@@ -17,50 +17,47 @@ def nn_deconv(n):
     b = np.convolve(c, x0) + 0.1*np.random.randn(2*n-1)
 
     x = cvx.Variable(n)
-    f = cvx.sum_squares(cvx.conv(c, x) - b)
+    f = cvx.norm(cvx.conv(c, x) - b)
     return cvx.Problem(cvx.Minimize(f), [x >= 0])
 
-PROBLEMS = [
-    nn_deconv
-]
-SIZES = [100, 1000, 10000]
+def run_scs(prob):
+    t0 = time.time()
+    prob.solve(solver=cvx.SCS, verbose=True, gpu=True)
+    print "gpu_solve_time: %.2f secs" % (time.time() - t0)
 
+    t0 = time.time()
+    prob.solve(solver=cvx.SCS, verbose=True, gpu=False)
+    print "cpu_solve_time: %.2f secs" % (time.time() - t0)
 
-for prob_func in PROBLEMS:
-    for n in SIZES:
-        print prob_func.__name__
-        print "num_vars:", n
+    t0 = time.time()
+    prob.get_problem_data(cvx.SCS)
+    print "get_problem_data_time: %.2f secs" % (time.time() - t0)
 
-        np.random.seed(0)
-        prob = prob_func(n)
+def run_tensorflow(prob):
+    from cvxflow.problem import TensorProblem
+    from cvxflow import scs_tf
 
-        if len(sys.argv) == 2 and sys.argv[1] == "scs":
-            t0 = time.time()
-            prob.solve(solver=cvx.SCS, verbose=True, gpu=True)
-            print "gpu_solve_time: %.2f secs" % (time.time() - t0)
+    t0 = time.time()
+    t_prob = TensorProblem(prob)
+    print "problem_time:", time.time() - t0
 
-            t0 = time.time()
-            prob.solve(solver=cvx.SCS, verbose=True, gpu=False)
-            print "cpu_solve_time: %.2f secs" % (time.time() - t0)
+    t0 = time.time()
+    objective = scs_tf.solve(t_prob, max_iters=2500, gpu=True)
+    print "gpu_solve_time: %.2f secs" % (time.time() - t0)
+    print "objective: %.2e" % objective
 
-            t0 = time.time()
-            prob.get_problem_data(cvx.SCS)
-            print "get_problem_data_time: %.2f secs" % (time.time() - t0)
+    t0 = time.time()
+    objective = scs_tf.solve(t_prob, max_iters=2500, gpu=False)
+    print "cpu_solve_time: %.2f secs" % (time.time() - t0)
+    print "objective: %.2e" % objective
 
-        else:
-            from cvxflow.problem import TensorProblem
-            from cvxflow import scs_tf
+if __name__ == "__main__":
+    _, run_name, n_str = sys.argv
+    run = globals()["run_" + run_name]
+    n = int(n_str)
 
-            t0 = time.time()
-            t_prob = TensorProblem(prob)
-            print "problem_time:", time.time() - t0
-
-            t0 = time.time()
-            objective = scs_tf.solve(t_prob, max_iters=2500, gpu=True)
-            print "gpu_solve_time: %.2f secs" % (time.time() - t0)
-            print "objective: %.2e" % objective
-
-            t0 = time.time()
-            objective = scs_tf.solve(t_prob, max_iters=2500, gpu=False)
-            print "cpu_solve_time: %.2f secs" % (time.time() - t0)
-            print "objective: %.2e" % objective
+    print "running", run_name, n
+    np.random.seed(0)
+    run(nn_deconv(n))
+    print
+    print
