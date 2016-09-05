@@ -9,6 +9,7 @@ import sys
 def op_dense_matrix(n):
     x = cvx.Variable(n)
     A = np.random.randn(2*n, n)
+    A /= np.sqrt(np.sum(A**2, 0))
     x.value = np.random.randn(n)
     return A*x, x
 
@@ -16,6 +17,10 @@ def op_sparse_matrix(n):
     x = cvx.Variable(n)
     A = sp.rand(2*n, n, 0.01)
     A.data = np.random.randn(A.nnz)
+    N = A.copy()
+    N.data = N.data**2
+    A = A*sp.diags([1 / np.sqrt(np.ravel(N.sum(axis=0)))], [0])
+
     x.value = np.random.randn(n)
     return A*x, x
 
