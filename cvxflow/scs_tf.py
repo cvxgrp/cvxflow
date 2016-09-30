@@ -9,6 +9,7 @@ import tensorflow as tf
 
 from cvxflow.cones import proj_nonnegative, proj_cone
 from cvxflow.conjugate_gradient import conjugate_gradient_solve
+from cvxflow.equilibrate import equilibrate, balance
 from cvxflow.problem import TensorProblem
 from cvxflow.tf_util import dot, norm
 
@@ -22,18 +23,25 @@ Counters = namedtuple("Counters", ["total_cg_iters", "iters"])
 class ScaledTensorProblem(object):
     """Rescale the problem so that b and c have unit norm."""
 
-    def __init__(self, orig):
+    def __init__(self, orig, equil_iters):
         self.orig = orig
-        self.sigma = 1. / norm(orig.b)
-        self.rho = 1. / norm(orig.c)
-        self.b = self.sigma * orig.b
-        self.c = self.rho * orig.c
+        # Equilibrate.
+        shape = (int(self.orig.b.get_shape()[0]),
+                 int(self.orig.c.get_shape()[0]))
+        d, e = balance(self.orig.A, self.orig.AT, shape, equil_iters)
+        equil_sess = tf.Session()
+        with equil_sess.as_default():
+            self.d, self.e = equil_sess.run([d, e])
+        self.sigma = 1. / norm(orig.b * self.d)
+        self.rho = 1. / norm(orig.c * self.e)
+        self.b = self.sigma * orig.b * self.d
+        self.c = self.rho * orig.c * self.e
 
     def A(self, x):
-        return self.orig.A(x)
+        return tf.mul(self.d, self.orig.A(tf.mul(self.e, x)))
 
     def AT(self, y):
-        return self.orig.AT(y)
+        return self.e*self.orig.AT(self.d*y)
 
     @property
     def cone_slices(self):
@@ -56,7 +64,7 @@ def init_cache(problem, cache):
     """Compute g = M^{-1}h."""
     n = int(problem.c.get_shape()[0])
     cg_tol = 1e-9
-    g_x_init = tf.zeros((n,1), dtype=tf.float32)
+    g_x_init = tf.zeros((n, 1), dtype=tf.float32)
     g_x, g_y, _ = solve_scs_linear(
         problem, problem.c, problem.b, g_x_init, cg_tol)
     return tf.group(
@@ -146,9 +154,9 @@ def create_counters():
 
 
 def solve(problem, max_iters=2500, trace=False, eps_primal=1e-3, eps_dual=1e-3,
-          eps_gap=1e-3, gpu=True):
+          eps_gap=1e-3, equil_iters=50, gpu=True):
     """Create SCS tensorflow graph and solve."""
-    scaled_problem = ScaledTensorProblem(problem)
+    scaled_problem = ScaledTensorProblem(problem, equil_iters)
 
     # variables
     u, v = create_variables(scaled_problem)

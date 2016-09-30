@@ -22,15 +22,19 @@ def nn_deconv(n):
     return cvx.Problem(cvx.Minimize(f), [x >= 0])
 
 def lasso_dense(n):
-    m = 2*n
-    A = np.random.randn(m, n)
+    m = n//2
+    d = np.random.lognormal(0, 3, size=m)
+    e = np.random.lognormal(0, 3, size=n)
+    A = np.diag(d).dot(np.random.randn(m, n)).dot(np.diag(e))
+    # A = np.random.randn(m, n)
     A /= np.sqrt(np.sum(A**2, 0))
     b = A*sp.rand(n, 1, 0.1) + 1e-2*np.random.randn(m,1)
     lam = 0.2*np.max(np.abs(A.T.dot(b)))
 
     x = cvx.Variable(n)
-    f = cvx.sum_squares(A*x - b) + lam*cvx.norm1(x)
-    return cvx.Problem(cvx.Minimize(f))
+    # f = cvx.sum_squares(A*x - b) + lam*cvx.norm1(x)
+    f = lam*cvx.norm1(x)
+    return cvx.Problem(cvx.Minimize(f), [A*x == b])
 
 def lasso_sparse(n):
     m = 2*n
@@ -44,7 +48,8 @@ def lasso_sparse(n):
     lam = 0.2*np.max(np.abs(A.T*b))
 
     x = cvx.Variable(n)
-    f = cvx.sum_squares(A*x - b) + lam*cvx.norm1(x)
+    # f = cvx.sum_squares(A*x - b) + lam*cvx.norm1(x)
+    f = cvx.norm1(A*x - b) + lam*cvx.norm1(x)
     return cvx.Problem(cvx.Minimize(f))
 
 def lasso_conv(n):
@@ -58,7 +63,8 @@ def lasso_conv(n):
     print lam
 
     x = cvx.Variable(n)
-    f = cvx.sum_squares(cvx.conv(c, x) - b) + lam*cvx.norm1(x)
+    # f = cvx.sum_squares(cvx.conv(c, x) - b) + lam*cvx.norm1(x)
+    f = cvx.norm1(cvx.conv(c, x) - b) + lam*cvx.norm1(x)
     return cvx.Problem(cvx.Minimize(f))
 
 def run_scs(prob):
@@ -67,7 +73,8 @@ def run_scs(prob):
     # print "gpu_solve_time: %.2f secs" % (time.time() - t0)
 
     t0 = time.time()
-    prob.solve(solver=cvx.SCS, verbose=True, gpu=False)
+    prob.solve(solver=cvx.SCS, max_iters=10000,
+               use_indirect=True, verbose=True, gpu=False)
     print "cpu_solve_time: %.2f secs" % (time.time() - t0)
 
     t0 = time.time()
@@ -82,13 +89,13 @@ def run_tensorflow(prob):
     t_prob = TensorProblem(prob)
     print "problem_time:", time.time() - t0
 
-    t0 = time.time()
-    objective = scs_tf.solve(t_prob, max_iters=2500, gpu=True)
-    print "gpu_solve_time: %.2f secs" % (time.time() - t0)
-    print "objective: %.2e" % objective
+    # t0 = time.time()
+    # objective = scs_tf.solve(t_prob, equil_iters=0, max_iters=2500, gpu=True)
+    # print "gpu_solve_time: %.2f secs" % (time.time() - t0)
+    # print "objective: %.2e" % objective
 
     t0 = time.time()
-    objective = scs_tf.solve(t_prob, max_iters=2500, gpu=False)
+    objective = scs_tf.solve(t_prob, equil_iters=50, max_iters=2500, gpu=False)
     print "cpu_solve_time: %.2f secs" % (time.time() - t0)
     print "objective: %.2e" % objective
 
