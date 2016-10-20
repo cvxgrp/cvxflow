@@ -1,5 +1,9 @@
-# python
+# python artifacts
 *.pyc
+.eggs
+.ipynb_checkpoints
+build
+cvxflow.egg-info
 
-# tensorflow
+# tensorflow artifacts
 *.SUNet
