@@ -11,5 +11,5 @@ setup(
         "cvxpy",
         "tensorflow",
     ],
-    test_suite = "cvxflow.tests",
+    test_suite = "cvxflow",
 )
