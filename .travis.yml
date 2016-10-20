@@ -1,0 +1,16 @@
+sudo: required
+
+language: python
+
+services:
+  - docker
+
+before_install:
+  - git clone https://github.com/cvxgrp/cvxpy.git $HOME/cvxpy
+  - docker pull cvxgrp/cvxflow
+
+script:
+  - docker run -v $TRAVIS_BUILD_DIR:/build/cvxflow cvxgrp/cvxflow /build/cvxflow/tools/run_ci.sh
+
+notifications:
+  email: false
