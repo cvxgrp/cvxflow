@@ -10,7 +10,6 @@ before_install:
 
 script:
   - docker run -v $TRAVIS_BUILD_DIR:/build/cvxflow cvxgrp/cvxflow /build/cvxflow/tools/run_ci.sh
-  - echo yay
 
 notifications:
   email: false
