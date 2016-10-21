@@ -101,24 +101,16 @@ class EquilibrateTest(tf.test.TestCase):
             return tf.matmul(_AT, x)
         gamma = 1e-1
         # compare with reference solution.
-        d, e = newton_equil(A0, gamma, 100)
-        tmp = np.diag(d).dot(A0).dot(np.diag(e))
-        u, v = np.log(d), np.log(e)
-        sltn_val = np.square(tmp).sum() / 2 - u.sum() - v.sum() + \
-            gamma * (np.linalg.norm(v)**2 + np.linalg.norm(u)**2)
+        d_newt, e_newt = newton_equil(A0, gamma, 100)
+        sltn_val = f(A0, np.log(d_newt), np.log(e_newt), gamma)
 
-        u, v = equilibrate(A, AT, (m, n), 100, gamma=gamma)
-        init = tf.initialize_all_variables()
-        with self.test_session():
-            tf.initialize_all_variables().run()
-            d = u.eval().ravel()
-            e = v.eval().ravel()
-            tmp = np.diag(d).dot(A0).dot(np.diag(e))
-            u, v = np.log(d), np.log(e)
-            obj_val = np.square(tmp).sum() / 2 - u.sum() - v.sum() + \
-            gamma * (np.linalg.norm(v)**2 + np.linalg.norm(u)**2)
-
-            assert_allclose(obj_val, sltn_val, rtol=1e-1, atol=1)
+        u, v = equilibrate(A, AT, (m, n), 250, gamma=gamma, M=3.)
+        with self.test_session() as sess:
+            d, e = sess.run([u, v])
+            d = d.ravel()
+            e = e.ravel()
+            obj_val = f(A0, np.log(d), np.log(e), gamma)
+            assert abs(obj_val - sltn_val) <= 5
 
 if __name__ == "__main__":
     tf.test.main()
