@@ -3,6 +3,8 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
+import time
+
 from tensorflow.contrib import linalg
 from tensorflow.python.client import session
 from tensorflow.python.framework import ops
@@ -23,7 +25,7 @@ class ADMM(Solver):
     """Alternating direction method of multipliers.
 
     minimize    f(x) + g(z)
-    subject to  Ax + Bz = c
+    subject to  Ax - Bz = c
     """
     def __init__(self, prox_f, prox_g, A, B, c, num_columns=1, atol=1e-4,
                  rtol=1e-2, rho=1):
@@ -53,13 +55,13 @@ class ADMM(Solver):
         A, B, c = self.A, self.B, self.c
 
         Bz = B.apply(z)
-        xp = self.prox_f(A.apply(c - Bz - u, adjoint=True))
+        xp = self.prox_f(A.apply(Bz - u + c, adjoint=True))
 
         Axp = A.apply(xp)
-        zp = self.prox_g(B.apply(c - Axp - u, adjoint=True))
+        zp = self.prox_g(B.apply(Axp + u - c, adjoint=True))
 
         Bzp = B.apply(zp)
-        r = Axp + Bzp - c
+        r = Axp - Bzp - c
         up = u + r
 
         r_norm = norm(r)
@@ -93,26 +95,29 @@ class ADMM(Solver):
             sess = session.Session()
 
         if verbose:
-            print("%5s %10s %10s %10s %10s" % (
-                ("iter", "r norm", "eps pri", "s norm", "eps dual")))
-            print("-"*49)
+            print("ADMM, rtol=%.2e, atol=%.2e" % (self.rtol, self.atol))
+            print("%5s %10s %10s %10s %10s %6s" % (
+                ("iter", "r norm", "eps pri", "s norm", "eps dual", "time")))
+            print("-"*56)
 
         sess.run(init_op)
         num_epochs = max_iters // epoch_iters
         for i in range(num_epochs):
+            t0 = time.time()
             sess.run(epoch_op)
             r_norm0, s_norm0, eps_pri0, eps_dual0 = sess.run(residuals_epoch)
+            t1 = time.time()
 
             if verbose:
                 total_iters = (i+1)*epoch_iters
-                print("%5d %10.2e %10.2e %10.2e %10.2e" %
-                      (total_iters, r_norm0, eps_pri0, s_norm0, eps_dual0))
+                print("%5d %10.2e %10.2e %10.2e %10.2e %5.0fs" %
+                      (total_iters, r_norm0, eps_pri0, s_norm0, eps_dual0, t1 - t0))
 
             if r_norm0 < eps_pri0 and s_norm0 < eps_dual0:
                 break
 
         if verbose:
-            print("-"*49)
+            print("-"*56)
             if i < num_epochs - 1:
                 print("Converged.")
             else:

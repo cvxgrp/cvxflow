@@ -16,8 +16,7 @@ class ADMMLassoTest(SolverTest):
             prox_f = functions.LeastSquares(A=A, b=b)
             prox_g = functions.AbsoluteValue(scale=lam)
             A = linalg.LinearOperatorIdentity(num_rows=2)
-            B = linalg.LinearOperatorDiag(
-                constant_op.constant(-1., shape=(2,)))
+            B = linalg.LinearOperatorIdentity(num_rows=2)
             c = 0.
 
             solver = solvers.ADMM(
@@ -37,8 +36,7 @@ class ADMMLeastAbsDevTest(SolverTest):
             prox_f = functions.LeastSquares(W=A)
             prox_g = functions.AbsoluteValue()
             A = linalg.LinearOperatorMatrix(A)
-            B = linalg.LinearOperatorDiag(
-                constant_op.constant(-1., shape=(3,)))
+            B = linalg.LinearOperatorIdentity(num_rows=A.shape[0])
             c = b
 
             solver = solvers.ADMM(prox_f, prox_g, A, B, c)
@@ -56,8 +54,7 @@ class ADMMQuantileRegression(SolverTest):
             prox_f = functions.LeastSquares(W=A)
             prox_g = functions.AbsoluteValue(scale=(0.2,0.8))
             A = linalg.LinearOperatorMatrix(A)
-            B = linalg.LinearOperatorDiag(
-                constant_op.constant(-1., shape=(A.shape[0],)))
+            B = linalg.LinearOperatorIdentity(num_rows=A.shape[0])
             c = b
 
             solver = solvers.ADMM(prox_f, prox_g, A, B, c)
@@ -76,8 +73,7 @@ class ADMMMultipleQuantileRegression(SolverTest):
             prox_g = functions.AbsoluteValue(
                 scale=([0.2,0.5,0.8],[0.8,0.5,0.2]))
             A = linalg.LinearOperatorMatrix(A)
-            B = linalg.LinearOperatorDiag(
-                constant_op.constant(-1., shape=(A.shape[0],)))
+            B = linalg.LinearOperatorIdentity(num_rows=A.shape[0])
             c = b
 
             solver = solvers.ADMM(prox_f, prox_g, A, B, c, num_columns=3)
