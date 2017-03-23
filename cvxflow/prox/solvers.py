@@ -5,7 +5,6 @@ from __future__ import print_function
 
 import time
 
-from tensorflow.contrib import linalg
 from tensorflow.python.client import session
 from tensorflow.python.framework import ops
 from tensorflow.python.ops import array_ops
@@ -27,7 +26,7 @@ class ADMM(Solver):
     minimize    f(x) + g(z)
     subject to  Ax - Bz = c
     """
-    def __init__(self, prox_f, prox_g, A, B, c, num_columns=1, atol=1e-4,
+    def __init__(self, prox_f, prox_g, A, B, c=0., num_columns=1, atol=1e-4,
                  rtol=1e-2, rho=1):
         self.prox_f = prox_f
         self.prox_g = prox_g
@@ -45,11 +44,12 @@ class ADMM(Solver):
 
         p, n = A.shape
         m = B.shape[1]
-
         self.x = variables.Variable(array_ops.zeros(shape=(n,num_columns)))
         self.z = variables.Variable(array_ops.zeros(shape=(m,num_columns)))
         self.u = variables.Variable(array_ops.zeros(shape=(p,num_columns)))
         self.variables = [self.x, self.z, self.u]
+
+        self.n, self.m, self.p = [x*num_columns for x in [n,m,p]]
 
     def iterate(self, (x, z, u)):
         A, B, c = self.A, self.B, self.c
@@ -67,16 +67,17 @@ class ADMM(Solver):
         r_norm = norm(r)
         s_norm = self.rho*norm(A.apply(Bzp - Bz, adjoint=True))
 
-        n, p = A.shape[1], B.shape[1]
-        eps_pri = (self.atol*math_ops.sqrt(math_ops.to_float(p)) +
+        eps_pri = (self.atol*math_ops.sqrt(math_ops.to_float(self.p)) +
                    self.rtol*math_ops.reduce_max(
                        [norm(Axp), norm(Bzp), norm(c)]))
-        eps_dual = (self.atol*math_ops.sqrt(math_ops.to_float(n)) +
+        eps_dual = (self.atol*math_ops.sqrt(math_ops.to_float(self.n)) +
                     self.rtol*self.rho*norm(A.apply(u, adjoint=True)))
 
         return [xp, zp, up], [r_norm, s_norm, eps_pri, eps_dual]
 
     def solve(self, max_iters=1000, epoch_iters=10, verbose=True, sess=None):
+        t_start = time.time()
+
         def cond(k, varz, residuals):
             return k < epoch_iters
 
@@ -95,7 +96,9 @@ class ADMM(Solver):
             sess = session.Session()
 
         if verbose:
-            print("ADMM, rtol=%.2e, atol=%.2e" % (self.rtol, self.atol))
+            print("Starting ADMM...")
+            print("n=%d, m=%d, p=%d" % (self.n, self.m, self.p))
+            print("rtol=%.2e, atol=%.2e" % (self.rtol, self.atol))
             print("%5s %10s %10s %10s %10s %6s" % (
                 ("iter", "r norm", "eps pri", "s norm", "eps dual", "time")))
             print("-"*56)
@@ -119,6 +122,8 @@ class ADMM(Solver):
         if verbose:
             print("-"*56)
             if i < num_epochs - 1:
-                print("Converged.")
+                status = "Converged"
             else:
-                print("Max iterations reached.")
+                status = "Max iterations"
+
+            print("%s, %.2f seconds." % (status, time.time() - t_start))

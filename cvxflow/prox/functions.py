@@ -1,8 +1,14 @@
 
+from tensorflow.python.framework import dtypes
 from tensorflow.python.framework import ops
 from tensorflow.python.ops import array_ops
 from tensorflow.python.ops import linalg_ops
 from tensorflow.python.ops import math_ops
+
+def convert(x, name=None, dtype=dtypes.float32):
+    if x is None:
+        return None
+    return ops.convert_to_tensor(x, name=name, dtype=dtype)
 
 class ProxFunction(object):
     def __repr__(self):
@@ -28,10 +34,10 @@ class LeastSquares(ProxFunction):
 
     0.5*sum_squares(A*x - b) + 0.5*mu*sum_squares(x)."""
     def __init__(self, A=None, b=None, mu=None, W=None, n=None, shape=None):
-        A = ops.convert_to_tensor(A, name="A") if A else None
-        b = ops.convert_to_tensor(b, name="b") if b else None
-        mu = ops.convert_to_tensor(mu, name="mu") if mu else None
-        W = ops.convert_to_tensor(W, name="W") if W else None
+        A = convert(A, name="A")
+        b = convert(b, name="b")
+        mu = convert(mu, name="mu")
+        W = convert(W, name="W")
 
         if A is not None:
             n = int(A.get_shape()[1])
