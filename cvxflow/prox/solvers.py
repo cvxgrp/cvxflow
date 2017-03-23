@@ -4,6 +4,7 @@ from __future__ import division
 from __future__ import print_function
 
 import time
+import numpy as np
 
 from tensorflow.python.client import session
 from tensorflow.python.framework import ops
@@ -26,16 +27,17 @@ class ADMM(Solver):
     minimize    f(x) + g(z)
     subject to  Ax - Bz = c
     """
-    def __init__(self, prox_f, prox_g, A, B, c=0., num_columns=1, atol=1e-4,
-                 rtol=1e-2, rho=1):
+    def __init__(self, prox_f, prox_g, A, B, c=0., num_columns=1, rho=1):
         self.prox_f = prox_f
         self.prox_g = prox_g
         self.A = A
         self.B = B
-        self.c = ops.convert_to_tensor(c)
-        self.atol = atol
-        self.rtol = rtol
         self.rho = rho
+
+        if A.dtype != B.dtype:
+            raise ValueError("A and B must have same dtype.")
+        self.dtype = A.dtype
+        self.c = ops.convert_to_tensor(c, dtype=self.dtype)
 
         if len(self.c.get_shape()) == 0:
             self.c = array_ops.reshape(c, (1,1))
@@ -44,14 +46,17 @@ class ADMM(Solver):
 
         p, n = A.shape
         m = B.shape[1]
-        self.x = variables.Variable(array_ops.zeros(shape=(n,num_columns)))
-        self.z = variables.Variable(array_ops.zeros(shape=(m,num_columns)))
-        self.u = variables.Variable(array_ops.zeros(shape=(p,num_columns)))
+        self.x = variables.Variable(
+            array_ops.zeros(shape=(n,num_columns), dtype=self.dtype))
+        self.z = variables.Variable(
+            array_ops.zeros(shape=(m,num_columns), dtype=self.dtype))
+        self.u = variables.Variable(
+            array_ops.zeros(shape=(p,num_columns), dtype=self.dtype))
         self.variables = [self.x, self.z, self.u]
 
-        self.n, self.m, self.p = [x*num_columns for x in [n,m,p]]
+        self.n, self.m, self.p = [int(x*num_columns) for x in [n,m,p]]
 
-    def iterate(self, (x, z, u)):
+    def iterate(self, (x, z, u), (rtol, atol)):
         A, B, c = self.A, self.B, self.c
 
         Bz = B.apply(z)
@@ -67,22 +72,24 @@ class ADMM(Solver):
         r_norm = norm(r)
         s_norm = self.rho*norm(A.apply(Bzp - Bz, adjoint=True))
 
-        eps_pri = (self.atol*math_ops.sqrt(math_ops.to_float(self.p)) +
-                   self.rtol*math_ops.reduce_max(
+        eps_pri = (atol*np.sqrt(self.p) +
+                   rtol*math_ops.reduce_max(
                        [norm(Axp), norm(Bzp), norm(c)]))
-        eps_dual = (self.atol*math_ops.sqrt(math_ops.to_float(self.n)) +
-                    self.rtol*self.rho*norm(A.apply(u, adjoint=True)))
+        eps_dual = (atol*np.sqrt(self.n) +
+                    rtol*self.rho*norm(A.apply(u, adjoint=True)))
 
         return [xp, zp, up], [r_norm, s_norm, eps_pri, eps_dual]
 
-    def solve(self, max_iters=10000, epoch_iters=10, verbose=True, sess=None):
+    def solve(self, max_iters=10000, epoch_iters=10, verbose=True, sess=None,
+              atol=1e-4, rtol=1e-2):
         t_start = time.time()
+        tol = (rtol, atol)
 
         def cond(k, varz, residuals):
             return k < epoch_iters
 
         def body(k, varz, residuals):
-            varzp, residualsp = self.iterate(varz)
+            varzp, residualsp = self.iterate(varz, tol)
             return [k+1, varzp, residualsp]
 
         loop_vars = [0, self.variables, [0.,0.,0.,0.]]
@@ -98,7 +105,7 @@ class ADMM(Solver):
         if verbose:
             print("Starting ADMM...")
             print("n=%d, m=%d, p=%d" % (self.n, self.m, self.p))
-            print("rtol=%.2e, atol=%.2e" % (self.rtol, self.atol))
+            print("rtol=%.2e, atol=%.2e" % (rtol, atol))
             print("%5s %10s %10s %10s %10s %6s" % (
                 ("iter", "r norm", "eps pri", "s norm", "eps dual", "time")))
             print("-"*56)
