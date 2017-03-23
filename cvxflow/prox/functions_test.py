@@ -14,27 +14,27 @@ class ProxFunctionTest(test.TestCase):
 
 class AbsoluteValueTest(ProxFunctionTest):
     PROX_FUNCTION = functions.AbsoluteValue
-    def test_default(self):
+    def testDefault(self):
         self._verify([-3.,-1.,4.], [-2.,0.,3.])
-    def test_scale_symmetric(self):
+    def testScaleSymmetric(self):
         self._verify([-3.,-1.,4.], [-1.,0.,2.], scale=2)
-    def test_scale_asymmetric(self):
+    def testScaleAsymmetric(self):
         self._verify([-4.,-2.,-1.,2.,3.], [-1.,0.,0.,1.,2.], scale=(3,1))
-    def test_2d(self):
+    def testScale2d(self):
         self._verify([[-3,-1,4.], [-3,-1,4.]],
                      [[0,0,3.], [-2,0,1.]],
                      scale=([[3],[1]],[[1],[3]]))
 
 class LeastSquaresTest(ProxFunctionTest):
     PROX_FUNCTION = functions.LeastSquares
-    def test_a_b(self):
+    def testBasic(self):
         self._verify([1.,2.], [-0.853448, 2.448276],
                      A=[[1.,2.],[3.,4.],[5.,6.]], b=[7.,8.,9.])
-    def test_a_b_2d(self):
+    def testBasic2d(self):
         self._verify([[1.,3.], [2., 4.]],
                      [[-0.853448, -0.629311], [2.448276, 2.310345]],
                      A=[[1.,2.],[3.,4.],[5.,6.]], b=[7.,8.,9.])
-    def test_a_b_mu(self):
+    def testBasicMu(self):
         self._verify([1.,2.], [-0.728593, 2.347778],
                      A=[[1.,2.],[3.,4.],[5.,6.]], b=[7.,8.,9.], mu=0.1)
         pass
