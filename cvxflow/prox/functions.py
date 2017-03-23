@@ -1,12 +1,12 @@
 
-import tensorflow as tf
+from tensorflow.python.framework import ops
+from tensorflow.python.ops import array_ops
+from tensorflow.python.ops import linalg_ops
+from tensorflow.python.ops import math_ops
 
 class ProxFunction(object):
     def __repr__(self):
         return self.__class__.__name__
-
-    def initialize_graph(self):
-        pass
 
 
 class AbsoluteValue(ProxFunction):
@@ -14,39 +14,57 @@ class AbsoluteValue(ProxFunction):
 
     If lam is a scalar, lam*|x|
     If lam is a tuple, -lam[0]*neg(x) + lam[1]*pos(x)."""
-    def __init__(self, lam):
-        self.lam = lam
-        if not isinstance(self.lam, tuple):
-            self.lam = (lam, lam)
+    def __init__(self, scale=1):
+        self.scale = scale
+        if not isinstance(self.scale, tuple):
+            self.scale = (scale, scale)
 
     def __call__(self, v):
-        return (tf.maximum(v - self.lam[1], 0) +
-                tf.minimum(v + self.lam[0], 0))
-
+        return (math_ops.maximum(v - self.scale[1], 0) +
+                math_ops.minimum(v + self.scale[0], 0))
 
 class LeastSquares(ProxFunction):
     """Least squares.
 
     0.5*sum_squares(A*x - b) + 0.5*mu*sum_squares(x)."""
-    def __init__(self, A, b, mu=0):
-        self.A = A
-        self.b = b
-        self.mu = mu
+    def __init__(self, A=None, b=None, mu=None, W=None, n=None, shape=None):
+        A = ops.convert_to_tensor(A, name="A") if A else None
+        b = ops.convert_to_tensor(b, name="b") if b else None
+        mu = ops.convert_to_tensor(mu, name="mu") if mu else None
+        W = ops.convert_to_tensor(W, name="W") if W else None
 
-    def initialize_graph(self):
-        self.A = tf.constant(self.A)
-        self.b = tf.constant(self.b, shape=(len(self.b), 1))
-
-        m, n = self.A.get_shape()
-        if m > n:
-            ATA = tf.matmul(self.A, self.A, transpose_a=True)
-            self.L = tf.cholesky(ATA + (self.mu+1)*tf.eye(int(n)))
+        if A is not None:
+            n = int(A.get_shape()[1])
+        elif W is not None:
+            n = int(W.get_shape()[1])
         else:
-            # TODO(mwytock): Add fat case
-            raise NotImplementedError
+            raise ValueError("Must specify either A or W")
 
-        self.ATb = tf.matmul(self.A, self.b, transpose_a=True)
+        M = 0
+        if A is not None:
+            M += math_ops.matmul(A, A, transpose_a=True)
+
+        if A is not None and b is not None:
+            if len(b.get_shape()) == 1:
+                b = array_ops.expand_dims(b, -1)
+            self.ATb = math_ops.matmul(A, b, transpose_a=True)
+        else:
+            self.ATb = 0
+
+        if W is not None:
+            M += math_ops.matmul(W, W, transpose_a=True)
+        else:
+            M += linalg_ops.eye(n)
+
+        if mu is not None:
+            M += mu*linalg_ops.eye(n)
+
+        self.L = linalg_ops.cholesky(M)
 
     def __call__(self, v):
-        v = tf.expand_dims(v, -1)
-        return tf.squeeze(tf.cholesky_solve(self.L, self.ATb + v))
+        if len(v.get_shape()) == 1:
+            v = array_ops.expand_dims(v, -1)
+            return array_ops.squeeze(
+                linalg_ops.cholesky_solve(self.L, self.ATb + v))
+        else:
+            return linalg_ops.cholesky_solve(self.L, self.ATb + v)

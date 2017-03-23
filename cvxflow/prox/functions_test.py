@@ -1,36 +1,43 @@
 
-import tensorflow as tf
-from numpy.testing import assert_allclose
 
-from cvxflow.prox.functions import *
+from tensorflow.python.framework import ops
+from tensorflow.python.platform import test
 
-PROX_TESTS = [
-    (AbsoluteValue(2), [-3,-1,4], [-1,0,2]),
-    (AbsoluteValue((3, 1)), [-4,-1,3], [-1,0,2]),
-    (LeastSquares([[1.,2.],[3.,4.],[5.,6.]], [7.,8.,9.]), [1.,2.], [-0.853448, 2.448276]),
-    (LeastSquares([[1.,2.],[3.,4.],[5.,6.]], [7.,8.,9.], 0.1), [1.,2.], [-0.728593, 2.347778]),
-]
+from cvxflow.prox import functions
 
-def get_prox_test(f, v, expected_x):
-    def test(self):
-        with self.test_session():
-            f.initialize_graph()
-            x = f(tf.constant(v))
-            assert_allclose(expected_x, x.eval(), atol=1e-5)
+class ProxFunctionTest(test.TestCase):
+    def _verify(self, v, expected_x, **kwargs):
+        with self.test_session() as sess:
+            f = self.__class__.PROX_FUNCTION(**kwargs)
+            x = sess.run(f(ops.convert_to_tensor(v)))
+            self.assertAllClose(expected_x, x, atol=1e-5)
 
-    return test
+class AbsoluteValueTest(ProxFunctionTest):
+    PROX_FUNCTION = functions.AbsoluteValue
+    def test_default(self):
+        self._verify([-3.,-1.,4.], [-2.,0.,3.])
+    def test_scale_symmetric(self):
+        self._verify([-3.,-1.,4.], [-1.,0.,2.], scale=2)
+    def test_scale_asymmetric(self):
+        self._verify([-4.,-2.,-1.,2.,3.], [-1.,0.,0.,1.,2.], scale=(3,1))
+    def test_2d(self):
+        self._verify([[-3,-1,4.], [-3,-1,4.]],
+                     [[0,0,3.], [-2,0,1.]],
+                     scale=([[3],[1]],[[1],[3]]))
 
-class ProxTest(tf.test.TestCase):
-    pass
+class LeastSquaresTest(ProxFunctionTest):
+    PROX_FUNCTION = functions.LeastSquares
+    def test_a_b(self):
+        self._verify([1.,2.], [-0.853448, 2.448276],
+                     A=[[1.,2.],[3.,4.],[5.,6.]], b=[7.,8.,9.])
+    def test_a_b_2d(self):
+        self._verify([[1.,3.], [2., 4.]],
+                     [[-0.853448, -0.629311], [2.448276, 2.310345]],
+                     A=[[1.,2.],[3.,4.],[5.,6.]], b=[7.,8.,9.])
+    def test_a_b_mu(self):
+        self._verify([1.,2.], [-0.728593, 2.347778],
+                     A=[[1.,2.],[3.,4.],[5.,6.]], b=[7.,8.,9.], mu=0.1)
+        pass
 
 if __name__ == "__main__":
-    counts = {}
-
-    for params in PROX_TESTS:
-        name = params[0].__class__.__name__
-        count = counts.setdefault(name, 0)
-        test_name = "test_" + name + str(count)
-        setattr(ProxTest, test_name, get_prox_test(*params))
-        counts[name] += 1
-
-    tf.test.main()
+    test.main()
