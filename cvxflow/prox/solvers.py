@@ -6,10 +6,11 @@ from __future__ import print_function
 import time
 import numpy as np
 
+from tensorflow.core.protobuf import config_pb2
 from tensorflow.python.client import session
-from tensorflow.python.framework import ops
+from tensorflow.python.client import timeline
 from tensorflow.python.framework import constant_op
-
+from tensorflow.python.framework import ops
 from tensorflow.python.ops import array_ops
 from tensorflow.python.ops import control_flow_ops
 from tensorflow.python.ops import linalg_ops
@@ -78,7 +79,7 @@ class ADMM(Solver):
         return [xp, zp, up], [r_norm, s_norm, eps_pri, eps_dual]
 
     def solve(self, max_iters=10000, epoch_iters=10, verbose=False, sess=None,
-              atol=1e-4, rtol=1e-2):
+              atol=1e-4, rtol=1e-2, profile=False):
         t_start = time.time()
         tol = (rtol, atol)
 
@@ -102,6 +103,7 @@ class ADMM(Solver):
         if sess is None:
             sess = session.Session()
 
+
         if verbose:
             print("Starting ADMM...")
             print("n=%d, m=%d, p=%d" % (self.n, self.m, self.p))
@@ -110,12 +112,27 @@ class ADMM(Solver):
                 ("iter", "r norm", "eps pri", "s norm", "eps dual", "time")))
             print("-"*56)
 
+
         sess.run(init_op)
         num_epochs = max_iters // epoch_iters
         for i in range(num_epochs):
             t0 = time.time()
-            sess.run(epoch_op)
-            r_norm0, s_norm0, eps_pri0, eps_dual0 = sess.run(residuals_epoch)
+            if profile:
+                run_options = config_pb2.RunOptions(
+                    trace_level=config_pb2.RunOptions.FULL_TRACE)
+                run_metadata = config_pb2.RunMetadata()
+                _, r_norm0, s_norm0, eps_pri0, eps_dual0 = sess.run(
+                    [epoch_op] + residuals_epoch,
+                    options=run_options,
+                    run_metadata=run_metadata)
+
+                tl = timeline.Timeline(run_metadata.step_stats)
+                ctf = tl.generate_chrome_trace_format()
+                with open("/tmp/cvxflow_prox_admm_epoch_%d.json" % i, "w") as f:
+                    f.write(ctf)
+            else:
+                _, r_norm0, s_norm0, eps_pri0, eps_dual0 = sess.run(
+                    [epoch_op] + residuals_epoch)
             t1 = time.time()
 
             if verbose:
