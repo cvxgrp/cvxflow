@@ -25,6 +25,7 @@ def quantile_regression():
     tau = 0.2
     f = cvx.sum_entries(
         -tau*cvx.min_elemwise(z, 0) + (1-tau)*cvx.max_elemwise(z, 0))
+    f += 1e-2*cvx.sum_squares(x)
     return x, cvx.Problem(cvx.Minimize(f))
 
 def multiple_quantile_regression():
@@ -47,4 +48,6 @@ if __name__ == "__main__":
     for prob in PROBLEMS:
         x, cvx_prob = prob()
         cvx_prob.solve()
-        print "%s: %s" % (prob.__name__, repr(x.value))
+        print "%s:" % prob.__name__
+        print cvx_prob.objective.value
+        print repr(x.value)

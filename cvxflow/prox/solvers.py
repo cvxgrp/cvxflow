@@ -8,6 +8,8 @@ import numpy as np
 
 from tensorflow.python.client import session
 from tensorflow.python.framework import ops
+from tensorflow.python.framework import constant_op
+
 from tensorflow.python.ops import array_ops
 from tensorflow.python.ops import control_flow_ops
 from tensorflow.python.ops import linalg_ops
@@ -27,7 +29,7 @@ class ADMM(Solver):
     minimize    f(x) + g(z)
     subject to  Ax - Bz = c
     """
-    def __init__(self, prox_f, prox_g, A, B, c=0., num_columns=1, rho=1):
+    def __init__(self, prox_f, prox_g, A, B, c=None, num_columns=1, rho=1):
         self.prox_f = prox_f
         self.prox_g = prox_g
         self.A = A
@@ -37,12 +39,7 @@ class ADMM(Solver):
         if A.dtype != B.dtype:
             raise ValueError("A and B must have same dtype.")
         self.dtype = A.dtype
-        self.c = ops.convert_to_tensor(c, dtype=self.dtype)
-
-        if len(self.c.get_shape()) == 0:
-            self.c = array_ops.reshape(c, (1,1))
-        elif len(self.c.get_shape()) == 1:
-            self.c = array_ops.reshape(c, (int(self.c.get_shape()[0]), 1))
+        self.c = constant_op.constant(0, dtype=self.dtype) if c is None else c
 
         p, n = A.shape
         m = B.shape[1]
@@ -80,7 +77,7 @@ class ADMM(Solver):
 
         return [xp, zp, up], [r_norm, s_norm, eps_pri, eps_dual]
 
-    def solve(self, max_iters=10000, epoch_iters=10, verbose=True, sess=None,
+    def solve(self, max_iters=10000, epoch_iters=10, verbose=False, sess=None,
               atol=1e-4, rtol=1e-2):
         t_start = time.time()
         tol = (rtol, atol)
@@ -92,7 +89,10 @@ class ADMM(Solver):
             varzp, residualsp = self.iterate(varz, tol)
             return [k+1, varzp, residualsp]
 
-        loop_vars = [0, self.variables, [0.,0.,0.,0.]]
+        residuals0 = [
+            constant_op.constant(0, dtype=self.dtype) for _ in range(4)]
+        loop_vars = [0, self.variables, residuals0]
+
         _, varz_epoch, residuals_epoch = control_flow_ops.while_loop(
             cond, body, loop_vars)
         init_op = variables.global_variables_initializer()

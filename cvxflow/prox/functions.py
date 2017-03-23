@@ -64,9 +64,4 @@ class LeastSquares(ProxFunction):
         self.L = linalg_ops.cholesky(M)
 
     def __call__(self, v):
-        if len(v.get_shape()) == 1:
-            v = array_ops.expand_dims(v, -1)
-            return array_ops.squeeze(
-                linalg_ops.cholesky_solve(self.L, self.ATb + v))
-        else:
-            return linalg_ops.cholesky_solve(self.L, self.ATb + v)
+        return linalg_ops.cholesky_solve(self.L, self.ATb + v)

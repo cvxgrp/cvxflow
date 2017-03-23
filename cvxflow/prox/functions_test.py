@@ -9,7 +9,6 @@ from tensorflow.python.platform import test
 from cvxflow.prox import functions
 
 class ProxFunctionTest(test.TestCase):
-
     @property
     def _dtypes_to_test(self):
         return [dtypes.float32, dtypes.float64]
@@ -57,22 +56,22 @@ class LeastSquaresTest(ProxFunctionTest):
     def _prox_function(self):
         return functions.LeastSquares
 
-    def testBasic(self):
+    def testBasic1d(self):
         self._verify(
-            [1.,2.], [-0.853448, 2.448276],
+            [[1.],[2.]], [[-0.853448], [2.448276]],
             A=linalg.LinearOperatorMatrix([[1.,2.],[3.,4.],[5.,6.]]),
-            b=[7.,8.,9.])
+            b=[[7.],[8.],[9.]])
     def testBasic2d(self):
         self._verify(
             [[1.,3.], [2., 4.]],
             [[-0.853448, -0.629311], [2.448276, 2.310345]],
             A=linalg.LinearOperatorMatrix([[1.,2.],[3.,4.],[5.,6.]]),
             b=[7.,8.,9.])
-    def testBasicMu(self):
+    def testBasic1dWithMu(self):
         self._verify(
-            [1.,2.], [-0.728593, 2.347778],
+            [[1.],[2.]], [[-0.728593], [2.347778]],
             A=linalg.LinearOperatorMatrix([[1.,2.],[3.,4.],[5.,6.]]),
-            b=[7.,8.,9.],
+            b=[[7.],[8.],[9.]],
             mu=0.1)
 
 if __name__ == "__main__":
