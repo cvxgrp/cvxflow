@@ -5,11 +5,6 @@ from tensorflow.python.ops import array_ops
 from tensorflow.python.ops import linalg_ops
 from tensorflow.python.ops import math_ops
 
-def convert(x, name=None, dtype=dtypes.float32):
-    if x is None:
-        return None
-    return ops.convert_to_tensor(x, name=name, dtype=dtype)
-
 class ProxFunction(object):
     def __repr__(self):
         return self.__class__.__name__
@@ -34,15 +29,15 @@ class LeastSquares(ProxFunction):
 
     0.5*sum_squares(A*x - b) + 0.5*mu*sum_squares(x)."""
     def __init__(self, A=None, b=None, mu=None, W=None, n=None, shape=None):
-        A = convert(A, name="A")
-        b = convert(b, name="b")
-        mu = convert(mu, name="mu")
-        W = convert(W, name="W")
-
+        n = None
         if A is not None:
-            n = int(A.get_shape()[1])
+            n = int(A.shape[1])
+            dtype = A.dtype
+            A = A.to_dense()
         elif W is not None:
-            n = int(W.get_shape()[1])
+            n = int(W.shape[1])
+            dtype = W.dtype
+            W = W.to_dense()
         else:
             raise ValueError("Must specify either A or W")
 
@@ -60,10 +55,11 @@ class LeastSquares(ProxFunction):
         if W is not None:
             M += math_ops.matmul(W, W, transpose_a=True)
         else:
-            M += linalg_ops.eye(n)
+            M += linalg_ops.eye(n, dtype=dtype)
 
         if mu is not None:
-            M += mu*linalg_ops.eye(n)
+            M += mu*linalg_ops.eye(n, dtype=dtype)
+
 
         self.L = linalg_ops.cholesky(M)
 
