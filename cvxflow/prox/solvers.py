@@ -57,24 +57,28 @@ class ADMM(Solver):
     def iterate(self, (x, z, u), (rtol, atol)):
         A, B, c = self.A, self.B, self.c
 
-        Bz = B.apply(z)
-        xp = self.prox_f(A.apply(Bz - u + c, adjoint=True))
+        with ops.name_scope("x_update"):
+            Bz = B.apply(z)
+            xp = self.prox_f(A.apply(Bz - u + c, adjoint=True))
 
-        Axp = A.apply(xp)
-        zp = self.prox_g(B.apply(Axp + u - c, adjoint=True))
+        with ops.name_scope("z_update"):
+            Axp = A.apply(xp)
+            zp = self.prox_g(B.apply(Axp + u - c, adjoint=True))
 
-        Bzp = B.apply(zp)
-        r = Axp - Bzp - c
-        up = u + r
+        with ops.name_scope("u_update"):
+            Bzp = B.apply(zp)
+            r = Axp - Bzp - c
+            up = u + r
 
-        r_norm = norm(r)
-        s_norm = self.rho*norm(A.apply(Bzp - Bz, adjoint=True))
+        with ops.name_scope("residuals"):
+            r_norm = norm(r)
+            s_norm = self.rho*norm(A.apply(Bzp - Bz, adjoint=True))
 
-        eps_pri = (atol*np.sqrt(self.p) +
-                   rtol*math_ops.reduce_max(
-                       [norm(Axp), norm(Bzp), norm(c)]))
-        eps_dual = (atol*np.sqrt(self.n) +
-                    rtol*self.rho*norm(A.apply(u, adjoint=True)))
+            eps_pri = (atol*np.sqrt(self.p) +
+                       rtol*math_ops.reduce_max(
+                           [norm(Axp), norm(Bzp), norm(c)]))
+            eps_dual = (atol*np.sqrt(self.n) +
+                        rtol*self.rho*norm(A.apply(u, adjoint=True)))
 
         return [xp, zp, up], [r_norm, s_norm, eps_pri, eps_dual]
 

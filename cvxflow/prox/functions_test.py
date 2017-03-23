@@ -41,11 +41,11 @@ class AbsoluteValueTest(ProxFunctionTest):
         return functions.AbsoluteValue
 
     def testDefault(self):
-        self._verify([-3.,-1.,4.], [-2.,0.,3.])
+        self._verify([-3.,-1.,4.], [-2.,0.,3.], scale=1.)
     def testScaleSymmetric(self):
-        self._verify([-3.,-1.,4.], [-1.,0.,2.], scale=2)
+        self._verify([-3.,-1.,4.], [-1.,0.,2.], scale=2.)
     def testScaleAsymmetric(self):
-        self._verify([-4.,-2.,-1.,2.,3.], [-1.,0.,0.,1.,2.], scale=(3,1))
+        self._verify([-4.,-2.,-1.,2.,3.], [-1.,0.,0.,1.,2.], scale=(3.,1.))
     def testScale2d(self):
         self._verify([[-3,-1,4.], [-3,-1,4.]],
                      [[0,0,3.], [-2,0,1.]],
@@ -66,7 +66,7 @@ class LeastSquaresTest(ProxFunctionTest):
             [[1.,3.], [2., 4.]],
             [[-0.853448, -0.629311], [2.448276, 2.310345]],
             A=linalg.LinearOperatorMatrix([[1.,2.],[3.,4.],[5.,6.]]),
-            b=[7.,8.,9.])
+            b=[[7.],[8.],[9.]])
     def testBasic1dWithMu(self):
         self._verify(
             [[1.],[2.]], [[-0.728593], [2.347778]],
