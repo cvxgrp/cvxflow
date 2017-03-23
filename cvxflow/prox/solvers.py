@@ -75,7 +75,7 @@ class ADMM(Solver):
 
         return [xp, zp, up], [r_norm, s_norm, eps_pri, eps_dual]
 
-    def solve(self, max_iters=1000, epoch_iters=10, verbose=True, sess=None):
+    def solve(self, max_iters=10000, epoch_iters=10, verbose=True, sess=None):
         t_start = time.time()
 
         def cond(k, varz, residuals):
@@ -127,3 +127,5 @@ class ADMM(Solver):
                 status = "Max iterations"
 
             print("%s, %.2f seconds." % (status, time.time() - t_start))
+
+        return sess.run(self.variables)
