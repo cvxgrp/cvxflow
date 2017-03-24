@@ -79,8 +79,9 @@ class ADMM(Solver):
                            [norm(Axp), norm(Bzp), norm(c)]))
             eps_dual = (atol*np.sqrt(self.n) +
                         rtol*self.rho*norm(A.apply(u, adjoint=True)))
+            residuals = [r_norm, s_norm, eps_pri, eps_dual]
 
-        return [xp, zp, up], [r_norm, s_norm, eps_pri, eps_dual]
+        return [xp, zp, up], residuals
 
     def solve(self, max_iters=10000, epoch_iters=10, verbose=False, sess=None,
               atol=1e-4, rtol=1e-2, profile=False):
