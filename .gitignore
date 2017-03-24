@@ -4,6 +4,7 @@
 .ipynb_checkpoints
 build
 cvxflow.egg-info
+dist
 
 # tensorflow artifacts
 *.SUNet
