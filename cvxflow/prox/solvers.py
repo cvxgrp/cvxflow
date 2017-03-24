@@ -17,10 +17,6 @@ from tensorflow.python.ops import linalg_ops
 from tensorflow.python.ops import math_ops
 from tensorflow.python.ops import variables
 
-def norm(x):
-    """L2-norm, elementwise."""
-    return math_ops.sqrt(math_ops.reduce_sum(math_ops.square(x)))
-
 class Solver(object):
     pass
 
@@ -75,14 +71,19 @@ class ADMM(Solver):
 
         with ops.name_scope("residuals"):
             def calculate_residuals():
-                r_norm = norm(r)
-                s_norm = self.rho*norm(A.apply(Bzp - Bz, adjoint=True))
+                r_norm = linalg_ops.norm(r)
+                s_norm = (
+                    self.rho*linalg_ops.norm(A.apply(Bzp - Bz, adjoint=True)))
 
-                eps_pri = (atol*np.sqrt(self.p) +
-                           rtol*math_ops.reduce_max(
-                               [norm(Axp), norm(Bzp), norm(c)]))
-                eps_dual = (atol*np.sqrt(self.n) +
-                            rtol*self.rho*norm(A.apply(u, adjoint=True)))
+                eps_pri = (
+                    atol*np.sqrt(self.p) +
+                    rtol*math_ops.reduce_max([
+                        linalg_ops.norm(Axp),
+                        linalg_ops.norm(Bzp),
+                        linalg_ops.norm(c)]))
+                eps_dual = (
+                    atol*np.sqrt(self.n) +
+                    rtol*self.rho*linalg_ops.norm(A.apply(u, adjoint=True)))
                 return [r_norm, s_norm, eps_pri, eps_dual]
 
             residuals = control_flow_ops.cond(
