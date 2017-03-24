@@ -17,10 +17,6 @@ from tensorflow.python.ops import linalg_ops
 from tensorflow.python.ops import math_ops
 from tensorflow.python.ops import variables
 
-def norm(x):
-    """L2-norm, elementwise."""
-    return math_ops.sqrt(math_ops.reduce_sum(math_ops.square(x)))
-
 class Solver(object):
     pass
 
@@ -54,7 +50,10 @@ class ADMM(Solver):
 
         self.n, self.m, self.p = [int(x*num_columns) for x in [n,m,p]]
 
-    def iterate(self, (x, z, u), (rtol, atol)):
+    def zero_residuals(self):
+        return [constant_op.constant(0, dtype=self.dtype) for _ in range(4)]
+
+    def iterate(self, (x, z, u), (rtol, atol), need_residuals):
         A, B, c = self.A, self.B, self.c
 
         with ops.name_scope("x_update"):
@@ -71,15 +70,26 @@ class ADMM(Solver):
             up = u + r
 
         with ops.name_scope("residuals"):
-            r_norm = norm(r)
-            s_norm = self.rho*norm(A.apply(Bzp - Bz, adjoint=True))
+            def calculate_residuals():
+                r_norm = linalg_ops.norm(r)
+                s_norm = (
+                    self.rho*linalg_ops.norm(A.apply(Bzp - Bz, adjoint=True)))
 
-            eps_pri = (atol*np.sqrt(self.p) +
-                       rtol*math_ops.reduce_max(
-                           [norm(Axp), norm(Bzp), norm(c)]))
-            eps_dual = (atol*np.sqrt(self.n) +
-                        rtol*self.rho*norm(A.apply(u, adjoint=True)))
-            residuals = [r_norm, s_norm, eps_pri, eps_dual]
+                eps_pri = (
+                    atol*np.sqrt(self.p) +
+                    rtol*math_ops.reduce_max([
+                        linalg_ops.norm(Axp),
+                        linalg_ops.norm(Bzp),
+                        linalg_ops.norm(c)]))
+                eps_dual = (
+                    atol*np.sqrt(self.n) +
+                    rtol*self.rho*linalg_ops.norm(A.apply(u, adjoint=True)))
+                return [r_norm, s_norm, eps_pri, eps_dual]
+
+            residuals = control_flow_ops.cond(
+                need_residuals,
+                calculate_residuals,
+                self.zero_residuals)
 
         return [xp, zp, up], residuals
 
@@ -92,13 +102,11 @@ class ADMM(Solver):
             return k < epoch_iters
 
         def body(k, varz, residuals):
-            varzp, residualsp = self.iterate(varz, tol)
+            need_residuals = math_ops.equal(k, epoch_iters-1)
+            varzp, residualsp = self.iterate(varz, tol, need_residuals)
             return [k+1, varzp, residualsp]
 
-        residuals0 = [
-            constant_op.constant(0, dtype=self.dtype) for _ in range(4)]
-        loop_vars = [0, self.variables, residuals0]
-
+        loop_vars = [0, self.variables, self.zero_residuals()]
         _, varz_epoch, residuals_epoch = control_flow_ops.while_loop(
             cond, body, loop_vars)
         init_op = variables.global_variables_initializer()
@@ -108,7 +116,6 @@ class ADMM(Solver):
         if sess is None:
             sess = session.Session()
 
-
         if verbose:
             print("Starting ADMM...")
             print("n=%d, m=%d, p=%d" % (self.n, self.m, self.p))
@@ -116,7 +123,6 @@ class ADMM(Solver):
             print("%5s %10s %10s %10s %10s %6s" % (
                 ("iter", "r norm", "eps pri", "s norm", "eps dual", "time")))
             print("-"*56)
-
 
         sess.run(init_op)
         num_epochs = max_iters // epoch_iters
