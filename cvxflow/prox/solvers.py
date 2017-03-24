@@ -101,7 +101,6 @@ class ADMM(Solver):
             return k < epoch_iters
 
         def body(k, varz, residuals):
-            print(k)
             need_residuals = math_ops.equal(k, epoch_iters-1)
             varzp, residualsp = self.iterate(varz, tol, need_residuals)
             return [k+1, varzp, residualsp]
