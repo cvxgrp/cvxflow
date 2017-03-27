@@ -17,13 +17,13 @@ from tensorflow.python.ops import linalg_ops
 from tensorflow.python.ops import math_ops
 from tensorflow.python.ops import variables
 
-class ADMM(Solver):
+class ADMM(object):
     """Alternating direction method of multipliers.
 
     minimize    f(x) + g(z)
     subject to  Ax + Bz = c
     """
-    def __init__(self, argmin_f, argmin_g, A=None, B, c=None, num_columns=1, rho=1):
+    def __init__(self, argmin_f, argmin_g, A, B, c=None, num_columns=1, rho=1):
         self.argmin_f = argmin_f
         self.argmin_g = argmin_g
         self.A = A
