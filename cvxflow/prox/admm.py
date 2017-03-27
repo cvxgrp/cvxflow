@@ -21,18 +21,15 @@ def norm(x):
     """L2-norm, elementwise."""
     return math_ops.sqrt(math_ops.reduce_sum(math_ops.square(x)))
 
-class Solver(object):
-    pass
-
-class ADMM(Solver):
+class ADMM(object):
     """Alternating direction method of multipliers.
 
     minimize    f(x) + g(z)
-    subject to  Ax - Bz = c
+    subject to  Ax + Bz = c
     """
-    def __init__(self, prox_f, prox_g, A, B, c=None, num_columns=1, rho=1):
-        self.prox_f = prox_f
-        self.prox_g = prox_g
+    def __init__(self, argmin_f, argmin_g, A=None, B, c=None, num_columns=1, rho=1):
+        self.argmin_f = argmin_f
+        self.argmin_g = argmin_g
         self.A = A
         self.B = B
         self.rho = rho
@@ -59,11 +56,11 @@ class ADMM(Solver):
 
         with ops.name_scope("x_update"):
             Bz = B.apply(z)
-            xp = self.prox_f(A.apply(Bz - u + c, adjoint=True))
+            xp = self.argmin_f(A.apply(Bz - u + c, adjoint=True))
 
         with ops.name_scope("z_update"):
             Axp = A.apply(xp)
-            zp = self.prox_g(B.apply(Axp + u - c, adjoint=True))
+            zp = self.argmin_g(B.apply(Axp + u - c, adjoint=True))
 
         with ops.name_scope("u_update"):
             Bzp = B.apply(zp)
