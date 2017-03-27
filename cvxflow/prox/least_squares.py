@@ -14,10 +14,9 @@ def _get_normal_equation(A, mu, b, n, dtype):
 
   M = (mu+1)*linalg_ops.eye(n, dtype=dtype)
   if A is not None:
-    AT = array_ops.transpose(A)
-    M += math_ops.matmul(AT, A)
+    M += math_ops.matmul(A, A, transpose_a=True)
     if b is not None:
-      h = math_ops.matmul(AT, b)
+      h = math_ops.matmul(A, b, transpose_a=True)
 
   return M, h
 

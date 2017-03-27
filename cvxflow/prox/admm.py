@@ -18,12 +18,6 @@ from tensorflow.python.ops import linalg_ops
 from tensorflow.python.ops import math_ops
 from tensorflow.python.ops import variables
 
-def identity(x):
-    return x
-
-def negate(x):
-    return -x
-
 class ADMM(object):
     """Alternating direction method of multipliers.
 
@@ -38,8 +32,8 @@ class ADMM(object):
 
         self.argmin_f = argmin_f
         self.argmin_g = argmin_g
-        self.A = A or (identity, identity)
-        self.B = B or (negate, negate)
+        self.A = A or (lambda x: x, lambda x: x)
+        self.B = B or (lambda x: -x, lambda x: -x)
         self.c = constant_op.constant(0, dtype=dtype) if c is None else c
         self.rho = rho
 
@@ -58,7 +52,7 @@ class ADMM(object):
         self.default_residuals = [
             constant_op.constant(0, dtype=dtype) for _ in range(4)]
 
-    def iterate(self, (x, z, u), (rtol, atol), need_residuals):
+    def _iterate(self, (x, z, u), (rtol, atol), need_residuals):
         A, AT = self.A
         B, BT = self.B
         c = self.c
@@ -99,6 +93,10 @@ class ADMM(object):
 
         return [xp, zp, up], residuals
 
+    @property
+    def _output_variables(self):
+        return self.variables
+
     def solve(self, max_iters=10000, epoch_iters=10, verbose=False, sess=None,
               atol=1e-4, rtol=1e-2, profile=False):
         t_start = time.time()
@@ -109,7 +107,7 @@ class ADMM(object):
 
         def body(k, varz, residuals):
             need_residuals = math_ops.equal(k, epoch_iters-1)
-            varzp, residualsp = self.iterate(varz, tol, need_residuals)
+            varzp, residualsp = self._iterate(varz, tol, need_residuals)
             return [k+1, varzp, residualsp]
 
         loop_vars = [0, self.variables, self.default_residuals]
@@ -169,4 +167,4 @@ class ADMM(object):
 
             print("%s, %.2f seconds." % (status, time.time() - t_start))
 
-        return sess.run(self.variables)
+        return sess.run(self._output_variables)
