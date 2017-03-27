@@ -12,8 +12,8 @@ class ProxFunction(object):
     for i, t in enumerate(graph_parents):
       if t is None or not framework.is_tensor(t):
         raise ValueError("Graph parent item %d is not a Tensor; %s." % (i, t))
-      self.graph_parents = graph_parents
-      self.name = name or type(self).__name__
+    self.graph_parents = graph_parents
+    self.name = name or type(self).__name__
 
   @contextlib.contextmanager
   def _name_scope(self, name=None, values=None):
