@@ -36,7 +36,7 @@ class LassoTest(POGSTest):
         prox_f = least_squares.LeastSquares(A=I, b=b)
         prox_g = absolute_value.AbsoluteValue(scale=lam)
         solver = pogs.POGS(prox_f, prox_g, (A, AT), shape=(m, n), dtype=dtype)
-        x, _ = solver.solve(sess=sess, verbose=True)
+        x, _ = solver.solve(sess=sess)
 
         self.assertEqual(dtype, x.dtype)
         self.assertAllClose(expected_x, x, rtol=1e-2, atol=1e-4)
