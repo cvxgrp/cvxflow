@@ -10,6 +10,7 @@ from tensorflow.core.protobuf import config_pb2
 from tensorflow.python.client import session
 from tensorflow.python.client import timeline
 from tensorflow.python.framework import constant_op
+from tensorflow.python.framework import dtypes
 from tensorflow.python.framework import ops
 from tensorflow.python.ops import array_ops
 from tensorflow.python.ops import control_flow_ops
@@ -17,52 +18,61 @@ from tensorflow.python.ops import linalg_ops
 from tensorflow.python.ops import math_ops
 from tensorflow.python.ops import variables
 
+def identity(x):
+    return x
+
+def negate(x):
+    return -x
+
 class ADMM(object):
     """Alternating direction method of multipliers.
 
     minimize    f(x) + g(z)
     subject to  Ax + Bz = c
     """
-    def __init__(self, argmin_f, argmin_g, A, B, c=None, num_columns=1, rho=1):
+    def __init__(
+            self, argmin_f, argmin_g, A=None, B=None, c=None, rho=1,
+            shape=None, dtype=dtypes.float32):
+        if not shape:
+            raise ValueError("Must specify shape")
+
         self.argmin_f = argmin_f
         self.argmin_g = argmin_g
-        self.A = A
-        self.B = B
+        self.A = A or (identity, identity)
+        self.B = B or (negate, negate)
+        self.c = constant_op.constant(0, dtype=dtype) if c is None else c
         self.rho = rho
 
-        if A.dtype != B.dtype:
-            raise ValueError("A and B must have same dtype.")
-        self.dtype = A.dtype
-        self.c = constant_op.constant(0, dtype=self.dtype) if c is None else c
-
-        p, n = A.shape
-        m = B.shape[1]
         self.x = variables.Variable(
-            array_ops.zeros(shape=(n,num_columns), dtype=self.dtype))
+            array_ops.zeros(shape=(shape[0],shape[3]), dtype=dtype))
         self.z = variables.Variable(
-            array_ops.zeros(shape=(m,num_columns), dtype=self.dtype))
+            array_ops.zeros(shape=(shape[1],shape[3]), dtype=dtype))
         self.u = variables.Variable(
-            array_ops.zeros(shape=(p,num_columns), dtype=self.dtype))
+            array_ops.zeros(shape=(shape[2],shape[3]), dtype=dtype))
         self.variables = [self.x, self.z, self.u]
 
-        self.n, self.m, self.p = [int(x*num_columns) for x in [n,m,p]]
+        # Variable sizes are used in computing primal/dual epsilon
+        self.n, self.m, self.p = [
+            np.prod(x.get_shape().as_list()) for x in self.variables]
 
-    def zero_residuals(self):
-        return [constant_op.constant(0, dtype=self.dtype) for _ in range(4)]
+        self.default_residuals = [
+            constant_op.constant(0, dtype=dtype) for _ in range(4)]
 
     def iterate(self, (x, z, u), (rtol, atol), need_residuals):
-        A, B, c = self.A, self.B, self.c
+        A, AT = self.A
+        B, BT = self.B
+        c = self.c
 
         with ops.name_scope("x_update"):
-            Bz = B.apply(z)
-            xp = self.argmin_f(A.apply(Bz - u + c, adjoint=True))
+            Bz = B(z)
+            xp = self.argmin_f(AT(Bz - u + c))
 
         with ops.name_scope("z_update"):
-            Axp = A.apply(xp)
-            zp = self.argmin_g(B.apply(Axp + u - c, adjoint=True))
+            Axp = A(xp)
+            zp = self.argmin_g(B(Axp + u - c))
 
         with ops.name_scope("u_update"):
-            Bzp = B.apply(zp)
+            Bzp = B(zp)
             r = Axp - Bzp - c
             up = u + r
 
@@ -70,8 +80,7 @@ class ADMM(object):
             def calculate_residuals():
                 r_norm = linalg_ops.norm(r)
                 s_norm = (
-                    self.rho*linalg_ops.norm(A.apply(Bzp - Bz, adjoint=True)))
-
+                    self.rho*linalg_ops.norm(AT(Bzp - Bz)))
                 eps_pri = (
                     atol*np.sqrt(self.p) +
                     rtol*math_ops.reduce_max([
@@ -80,13 +89,13 @@ class ADMM(object):
                         linalg_ops.norm(c)]))
                 eps_dual = (
                     atol*np.sqrt(self.n) +
-                    rtol*self.rho*linalg_ops.norm(A.apply(u, adjoint=True)))
+                    rtol*self.rho*linalg_ops.norm(AT(u)))
                 return [r_norm, s_norm, eps_pri, eps_dual]
 
             residuals = control_flow_ops.cond(
                 need_residuals,
                 calculate_residuals,
-                self.zero_residuals)
+                lambda: self.default_residuals)
 
         return [xp, zp, up], residuals
 
@@ -103,7 +112,7 @@ class ADMM(object):
             varzp, residualsp = self.iterate(varz, tol, need_residuals)
             return [k+1, varzp, residualsp]
 
-        loop_vars = [0, self.variables, self.zero_residuals()]
+        loop_vars = [0, self.variables, self.default_residuals]
         _, varz_epoch, residuals_epoch = control_flow_ops.while_loop(
             cond, body, loop_vars)
         init_op = variables.global_variables_initializer()

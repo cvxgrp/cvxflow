@@ -8,11 +8,7 @@ class ProxFunction(object):
   def __init__(self,
                graph_parents=None,
                name=None):
-    graph_parents = [] if graph_parents is None else graph_parents
-    for i, t in enumerate(graph_parents):
-      if t is None or not framework.is_tensor(t):
-        raise ValueError("Graph parent item %d is not a Tensor; %s." % (i, t))
-    self.graph_parents = graph_parents
+    self.graph_parents = [] if graph_parents is None else graph_parents
     self.name = name or type(self).__name__
 
   @contextlib.contextmanager

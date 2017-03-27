@@ -1,6 +1,5 @@
 
 
-from tensorflow.contrib import linalg
 from tensorflow.python.framework import dtypes
 from tensorflow.python.framework import ops
 from tensorflow.python.ops import math_ops

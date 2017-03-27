@@ -1,5 +1,4 @@
 
-from tensorflow.contrib import linalg
 from tensorflow.python.framework import constant_op
 from tensorflow.python.framework import dtypes
 from tensorflow.python.framework import ops
@@ -20,23 +19,20 @@ class LassoTest(ADMMTest):
   def _verify(self, A0, b0, lam0, expected_x):
     for dtype in self._dtypes_to_test:
       with self.test_session() as sess:
-        A = linalg.LinearOperatorMatrix(
-          ops.convert_to_tensor(A0, dtype=dtype))
+        A = ops.convert_to_tensor(A0, dtype=dtype)
         b = ops.convert_to_tensor(b0, dtype=dtype)
         lam = ops.convert_to_tensor(lam0, dtype=dtype)
-        I = linalg.LinearOperatorIdentity(num_rows=A.shape[1], dtype=dtype)
 
+        n = A.get_shape().as_list()[1]
         argmin_f = least_squares.LeastSquares(A=A, b=b)
         argmin_g = absolute_value.AbsoluteValue(scale=lam)
-        A = I
-        B = I
-        solver = admm.ADMM(argmin_f, argmin_g, A, B)
+        solver = admm.ADMM(argmin_f, argmin_g, shape=(n,n,n,1), dtype=dtype)
         x, _, _ = solver.solve(sess=sess)
 
         self.assertEqual(dtype, x.dtype)
         self.assertAllClose(expected_x, x, rtol=1e-2, atol=1e-4)
 
-  def testBasic(self):
+  def testLasso(self):
     self._verify([[1.,-10],[1.,10.],[1.,0.]], [[2.],[2.],[2.]], 1,
                  [[1.6666666], [0]])
 

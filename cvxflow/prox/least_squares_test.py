@@ -1,9 +1,7 @@
 
 
 from tensorflow.python.framework import ops
-from tensorflow.contrib import linalg
 from tensorflow.python.platform import test
-from tensorflow.contrib import linalg
 
 from cvxflow.prox import least_squares
 from cvxflow.prox import prox_function_testutil
@@ -12,11 +10,9 @@ from cvxflow.prox import prox_function_testutil
 class LeastSquaresTest(prox_function_testutil.ProxFunctionTest):
   def _get_prox_function_for_dtype(
       self, dtype, A=None, b=None, C=None, d=None, mu=None, n=None):
-    A = (linalg.LinearOperatorMatrix(ops.convert_to_tensor(A, dtype=dtype)) if A
-         else None)
+    A = ops.convert_to_tensor(A, dtype=dtype) if A else None
     b = ops.convert_to_tensor(b, dtype=dtype) if b else None
-    C = (linalg.LinearOperatorMatrix(ops.convert_to_tensor(C, dtype=dtype)) if C
-         else None)
+    C = ops.convert_to_tensor(C, dtype=dtype) if C else None
     d = ops.convert_to_tensor(d, dtype=dtype) if d else None
     mu = ops.convert_to_tensor(mu, dtype=dtype) if mu else None
     return least_squares.LeastSquares(

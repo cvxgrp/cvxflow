@@ -7,21 +7,6 @@ from tensorflow.python.ops import math_ops
 from cvxflow.prox import prox_function
 
 
-def _get_graph_parents(A, b, C, d, mu):
-  graph_parents = []
-  if A is not None:
-    graph_parents.extend(A.graph_parents)
-  if b is not None:
-    graph_parents.append(b)
-  if C is not None:
-    graph_parents.extend(C.graph_parents)
-  if d is not None:
-    graph_parents.append(d)
-  if mu is not None:
-    graph_parents.append(mu)
-  return graph_parents
-
-
 def _get_normal_equation(A, mu, b, n, dtype):
   M = 0
   h = 0
@@ -29,9 +14,10 @@ def _get_normal_equation(A, mu, b, n, dtype):
 
   M = (mu+1)*linalg_ops.eye(n, dtype=dtype)
   if A is not None:
-    M += A.apply(A.to_dense(), adjoint=True)
+    AT = array_ops.transpose(A)
+    M += math_ops.matmul(AT, A)
     if b is not None:
-      h = A.apply(b, adjoint=True)
+      h = math_ops.matmul(AT, b)
 
   return M, h
 
@@ -51,36 +37,31 @@ class LeastSquares(prox_function.ProxFunction):
         n = n
       else:
         dtype = A.dtype
-        n = int(A.shape[1])
+        n = int(A.get_shape()[1])
 
-      graph_parents = _get_graph_parents(A, b, C, d, mu)
       M, self.h = _get_normal_equation(A, mu, b, n, dtype)
       self.chol = linalg_ops.cholesky(M)
 
-      if C:
+      if C is not None:
         self.constrained = True
         self.C = C
+        self.CT = array_ops.transpose(C)
         self.d = d
-
-        # CM^{-1}C^T
-        self.chol_constraint = C.apply(
-          linalg_ops.cholesky_solve(
-            self.chol,
-            array_ops.transpose(C.to_dense())))
-
+        self.chol_constraint = math_ops.matmul(self.C,
+          linalg_ops.cholesky_solve(self.chol, self.CT))  # CM^{-1}C^T
       else:
         self.constrained = False
 
       super(LeastSquares, self).__init__(
-        graph_parents=graph_parents,
+        graph_parents=[A, b, C, d, mu],
         name=name)
 
   def _call(self, v):
     if self.constrained:
       z = linalg_ops.cholesky_solve(self.chol, self.h + v)
       y = linalg_ops.cholesky_solve(
-        self.chol_constraint, self.C.apply(z) - self.d)
+        self.chol_constraint, math_ops.matmul(self.C, z) - self.d)
       return linalg_ops.cholesky_solve(
-        self.chol, self.h + v - self.C.apply(y, adjoint=True))
+        self.chol, self.h + v - math_ops.matmul(self.CT, y))
     else:
       return linalg_ops.cholesky_solve(self.chol, self.h + v)
