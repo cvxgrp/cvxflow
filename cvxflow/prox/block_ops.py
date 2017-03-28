@@ -11,7 +11,7 @@ def get_slices(shape):
     size_i = np.prod(shape_i)
     slices.append((slice(offset, offset+size_i), shape_i))
     offset += size_i
-  return slices, offset
+  return slices
 
 
 def to_list(x, slices, name="to_list"):
