@@ -52,7 +52,6 @@ class POGS(object):
       self.A, self.AT, b, x_init, tol=tol, shift=1)
     x = x + v_x
     y = self.A(x)
-
     return array_ops.concat([y, x], axis=0)
 
   def solve(self, **kwargs):
