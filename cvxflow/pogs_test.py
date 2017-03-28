@@ -10,12 +10,12 @@ from tensorflow.python.ops import linalg_ops
 from tensorflow.python.ops import math_ops
 from tensorflow.python.platform import test
 
+from cvxflow import block_ops
+from cvxflow import pogs
 from cvxflow.prox import absolute_value
-from cvxflow.prox import block_ops
 from cvxflow.prox import block_separable
 from cvxflow.prox import least_squares
 from cvxflow.prox import non_negative
-from cvxflow.prox import pogs
 
 class POGSTest(test.TestCase):
   @property
@@ -76,14 +76,14 @@ class MultipleQuantileRegressionTest(POGSTest):
           theta, = block_ops.to_list(x, x_slices)
           XT = math_ops.matmul(X, theta)
           XTD = XT[:,1:] - XT[:,:-1]
-          return block_ops.vec([XT, XTD])
+          return block_ops.to_vector([XT, XTD])
         def AT(y):
           W, Z = block_ops.to_list(y, y_slices)
           XTW = math_ops.matmul(X, W, transpose_a=True)
           XTZ = math_ops.matmul(X, Z, transpose_a=True)
           XTZDT = array_ops.concat(
             [-XTZ[:,:1], XTZ[:,:-1] - XTZ[:,1:], XTZ[:,-1:]], axis=1)
-          return block_ops.vec([XTW + XTZDT])
+          return block_ops.to_vector([XTW + XTZDT])
 
         scale = (ops.convert_to_tensor(tau, dtype=dtype),
                  ops.convert_to_tensor(1-tau, dtype=dtype))

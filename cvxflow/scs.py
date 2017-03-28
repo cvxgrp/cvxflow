@@ -8,7 +8,7 @@ import numpy as np
 import tensorflow as tf
 
 from cvxflow.cones import proj_nonnegative, proj_cone
-from cvxflow.conjugate_gradient import conjugate_gradient_solve
+from cvxflow import conjugate_gradient
 from cvxflow.equilibrate import equilibrate, balance
 from cvxflow.problem import TensorProblem
 from cvxflow import vector_ops
@@ -55,7 +55,7 @@ def solve_scs_linear(problem, w_x, w_y, z_x_init, cg_tol):
     """
     def M(x):
         return x + problem.AT(problem.A(x))
-    z_x, cg_iters, _ = conjugate_gradient_solve(
+    z_x, cg_iters, _ = conjugate_gradient.cg_solve(
         M, w_x - problem.AT(w_y), z_x_init, tol=cg_tol)
     z_y = w_y + problem.A(z_x)
     return z_x, z_y, cg_iters

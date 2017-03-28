@@ -2,7 +2,7 @@
 from tensorflow.python.framework import ops
 
 from cvxflow.prox import prox_function
-from cvxflow.prox import block_ops
+from cvxflow import block_ops
 
 
 class BlockSeparable(prox_function.ProxFunction):
@@ -13,6 +13,6 @@ class BlockSeparable(prox_function.ProxFunction):
       super(BlockSeparable, self).__init__(name=name)
 
   def _call(self, v):
-    return block_ops.vec(
+    return block_ops.to_vector(
       [prox_i(v_i) for prox_i, v_i
        in zip(self.prox, block_ops.to_list(v, self.slices))])

@@ -6,7 +6,7 @@ from tensorflow.python.ops import array_ops
 from tensorflow.python.ops import linalg_ops
 from tensorflow.python.ops import math_ops
 
-from cvxflow.prox import admm
+from cvxflow import admm
 from cvxflow import conjugate_gradient
 
 PROJECT_TOL_MIN = 1e-2

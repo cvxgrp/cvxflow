@@ -5,7 +5,7 @@ import cvxpy as cvx
 import numpy as np
 import tensorflow as tf
 
-from cvxflow import scs_tf
+from cvxflow import scs
 from cvxflow.problem import TensorProblem
 from cvxflow.problem_testutil import PROBLEMS
 from cvxflow import vector_ops
@@ -94,15 +94,15 @@ def get_iterate_test(problem_gen):
         v0[-1] = 1
 
         # variables
-        u, v = scs_tf.create_variables(problem)
-        cache = scs_tf.create_cache(problem)
-        counters = scs_tf.create_counters()
+        u, v = scs.create_variables(problem)
+        cache = scs.create_cache(problem)
+        counters = scs.create_counters()
 
         # ops
         init_op = tf.initialize_all_variables()
-        init_cache_op = scs_tf.init_cache(problem, cache)
-        iterate_op = scs_tf.iterate(problem, u, v, cache, counters)
-        residuals = scs_tf.compute_residuals(problem, u, v)
+        init_cache_op = scs.init_cache(problem, cache)
+        iterate_op = scs.iterate(problem, u, v, cache, counters)
+        residuals = scs.compute_residuals(problem, u, v)
 
         # Run two iterations
         u_vec = vstack([u.x, u.y, u.tau])
