@@ -6,8 +6,8 @@ from tensorflow.python.ops import array_ops
 from tensorflow.python.platform import test
 
 from cvxflow.prox import absolute_value
-from cvxflow.prox import admm
 from cvxflow.prox import least_squares
+from cvxflow import admm
 
 def argmin_prox(prox):
   def argmin(v, k):

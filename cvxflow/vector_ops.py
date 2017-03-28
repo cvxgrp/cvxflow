@@ -11,4 +11,4 @@ def mat(x, size):
     return tf.reshape(x, size)
 
 def vstack(xs):
-    return tf.concat(0, xs)
+    return tf.concat(xs, axis=0)

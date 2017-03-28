@@ -18,7 +18,7 @@ def to_list(x, slices, name="to_list"):
   with ops.name_scope(name, values=[x]):
     return [array_ops.reshape(x[idx], shape) for idx, shape in slices]
 
-def vec(x_list, name="vec"):
+def to_vector(x_list, name="vec"):
   with ops.name_scope(name, values=x_list):
     return array_ops.concat(
       [array_ops.reshape(x, (-1, 1)) for x in x_list], axis=0)

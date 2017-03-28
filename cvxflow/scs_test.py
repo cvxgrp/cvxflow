@@ -8,7 +8,7 @@ import tensorflow as tf
 from cvxflow import scs_tf
 from cvxflow.problem import TensorProblem
 from cvxflow.problem_testutil import PROBLEMS
-from cvxflow.tf_util import vstack
+from cvxflow import vector_ops
 
 def expected_subspace_projection(data, x):
     A = data["A"].todense()

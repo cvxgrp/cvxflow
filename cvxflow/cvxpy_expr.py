@@ -33,7 +33,7 @@ def tensor_mul(lin_op, value_map):
     if is_sparse(a):
         return tf.sparse_tensor_dense_matmul(a, b)
     elif is_scalar(a) or is_scalar(b):
-        return tf.mul(a, b)
+        return tf.multiply(a, b)
     else:
         return tf.matmul(a, b)
 
@@ -47,7 +47,7 @@ def tensor_sum(lin_op, value_map):
         tensor(lin_op.args[1], value_map))
 
 def tensor_neg(lin_op, value_map):
-    return tf.neg(
+    return tf.negative(
         tensor(lin_op.args[0], value_map))
 
 def tensor_promote(lin_op, value_map):
@@ -78,9 +78,9 @@ def tensor_conv(lin_op, value_map):
     n = lin_op.args[0].size[0]
 
     # add padding and flip
-    c = tf.concat(0, [tf.zeros((n-1, 1), dtype=tf.float32), c])
-    x = tf.concat(0, [x, tf.zeros((m-1, 1), dtype=tf.float32)])
-    c = tf.reverse(c, dims=[True, False])
+    c = tf.concat([tf.zeros((n-1, 1), dtype=tf.float32), c], axis=0)
+    x = tf.concat([x, tf.zeros((m-1, 1), dtype=tf.float32)], axis=0)
+    c = tf.reverse(c, axis=[0])
 
     return tf.reshape(
         tf.nn.conv2d(
@@ -104,7 +104,7 @@ def adjoint_tensor_mul(lin_op, value):
     if is_sparse(a):
         c = tf.sparse_tensor_dense_matmul(a, b, adjoint_a=True)
     elif is_scalar(a) or is_scalar(b):
-        c = tf.mul(tf.transpose(a), b)
+        c = tf.multiply(tf.transpose(a), b)
     else:
         c = tf.matmul(a, b, transpose_a=True)
 

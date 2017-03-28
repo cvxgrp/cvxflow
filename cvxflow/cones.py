@@ -1,7 +1,8 @@
 
 import tensorflow as tf
 
-from cvxflow.tf_util import vstack, norm
+from cvxflow import vector_ops
+from tensorflow.python.ops import linalg_ops
 
 ZERO = "zero"
 NONNEGATIVE = "nonnegative"

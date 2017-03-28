@@ -11,7 +11,7 @@ from cvxflow.cones import proj_nonnegative, proj_cone
 from cvxflow.conjugate_gradient import conjugate_gradient_solve
 from cvxflow.equilibrate import equilibrate, balance
 from cvxflow.problem import TensorProblem
-from cvxflow.tf_util import dot, norm
+from cvxflow import vector_ops
 
 PrimalVars = namedtuple("PrimalVars", ["x", "y", "tau"])
 DualVars = namedtuple("DualVars", ["r", "s", "kappa"])

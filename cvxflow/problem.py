@@ -18,15 +18,15 @@ import tensorflow as tf
 
 from cvxflow import cones
 from cvxflow import cvxpy_expr
+from cvxflow import vector_ops
 from cvxflow.cvxpy_expr import sum_dicts
-from cvxflow.tf_util import vec, mat, vstack
 
 
 def get_constraint_tensors(constraints):
     """Get expression for Ax + b."""
     A_exprs = [constr.expr for constr in tree_mat.prune_constants(constraints)]
-    b = vstack(
-        [vec(tf.constant(-tree_mat.mul(constr.expr, {}), dtype=tf.float32))
+    b = vector_ops.vstack(
+        [vector_ops.vec(tf.constant(-tree_mat.mul(constr.expr, {}), dtype=tf.float32))
          for constr in constraints])
     return A_exprs, b
 
@@ -38,9 +38,9 @@ def get_objective_tensor(var_ids, sym_data):
     obj_t = cvxpy_expr.tensor(sym_data.objective, xs_map)
 
     # get gradient, handling None values
-    return vstack([
-        vec(ci) if ci is not None
-        else vec(tf.zeros(sym_data.var_sizes[var_ids[i]], dtype=tf.float32))
+    return vector_ops.vstack([
+        vector_ops.vec(ci) if ci is not None
+        else vector_ops.vec(tf.zeros(sym_data.var_sizes[var_ids[i]], dtype=tf.float32))
         for i, ci in enumerate(tf.gradients(obj_t, xs))])
 
 class TensorProblem(object):
@@ -63,19 +63,19 @@ class TensorProblem(object):
         for var_id, var_size in self.sym_data.var_sizes.items():
             var_offset = self.sym_data.var_offsets[var_id]
             idx = slice(var_offset, var_offset+var_size[0]*var_size[1])
-            xs[var_id] = mat(x[idx,:], var_size)
-        return vstack([vec(cvxpy_expr.tensor(Ai, xs)) for Ai in self.A_exprs])
+            xs[var_id] = vector_ops.mat(x[idx,:], var_size)
+        return vector_ops.vstack([vector_ops.vec(cvxpy_expr.tensor(Ai, xs)) for Ai in self.A_exprs])
 
     def AT(self, y):
         ys = []
         offset = 0
         for constr in self.constraints:
             idx = slice(offset, offset+constr.size[0]*constr.size[1])
-            ys.append(mat(y[idx,:], constr.size))
+            ys.append(vector_ops.mat(y[idx,:], constr.size))
             offset += constr.size[0]*constr.size[1]
         x_map = sum_dicts(cvxpy_expr.adjoint_tensor(Ai, ys[i])
                           for i, Ai in enumerate(self.A_exprs))
-        return vstack([vec(x_map[var_id]) for var_id in self.var_ids])
+        return vector_ops.vstack([vector_ops.vec(x_map[var_id]) for var_id in self.var_ids])
 
     @property
     def cone_slices(self):
