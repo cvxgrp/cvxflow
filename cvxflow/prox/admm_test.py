@@ -9,6 +9,12 @@ from cvxflow.prox import absolute_value
 from cvxflow.prox import admm
 from cvxflow.prox import least_squares
 
+def argmin_prox(prox):
+  def argmin(v, k):
+    return prox(v)
+  return argmin
+
+
 class ADMMTest(test.TestCase):
   @property
   def _dtypes_to_test(self):
@@ -24,8 +30,8 @@ class LassoTest(ADMMTest):
         lam = ops.convert_to_tensor(lam0, dtype=dtype)
 
         n = A.get_shape().as_list()[1]
-        argmin_f = least_squares.LeastSquares(A=A, b=b)
-        argmin_g = absolute_value.AbsoluteValue(scale=lam)
+        argmin_f = argmin_prox(least_squares.LeastSquares(A=A, b=b))
+        argmin_g = argmin_prox(absolute_value.AbsoluteValue(scale=lam))
         solver = admm.ADMM(argmin_f, argmin_g, shape=(n,n,n,1), dtype=dtype)
         x, _, _ = solver.solve(sess=sess)
 

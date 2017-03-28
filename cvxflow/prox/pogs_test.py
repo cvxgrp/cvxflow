@@ -110,8 +110,7 @@ class MultipleQuantileRegressionTest(POGSTest):
         self.assertEqual(dtype, theta.dtype)
         self.assertAllClose(expected_obj_val, obj_val, rtol=1e-2, atol=1e-4)
 
-
-  def testBasic(self):
+  def testMultipleQuantileRegression(self):
     self._verify([[1.,1.],[1.,2.],[1.,3.],[1.,4.]], [[1.],[2.],[10.],[20.]],
                  10.0051362724)
 

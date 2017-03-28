@@ -52,18 +52,18 @@ class ADMM(object):
         self.default_residuals = [
             constant_op.constant(0, dtype=dtype) for _ in range(4)]
 
-    def _iterate(self, (x, z, u), (rtol, atol), need_residuals):
+    def _iterate(self, (x, z, u), (rtol, atol), need_residuals, k):
         A, AT = self.A
         B, BT = self.B
         c = self.c
 
         with ops.name_scope("x_update"):
             Bz = B(z)
-            xp = self.argmin_f(AT(Bz - u + c))
+            xp = self.argmin_f(AT(Bz - u + c), k)
 
         with ops.name_scope("z_update"):
             Axp = A(xp)
-            zp = self.argmin_g(B(Axp + u - c))
+            zp = self.argmin_g(B(Axp + u - c), k)
 
         with ops.name_scope("u_update"):
             Bzp = B(zp)
@@ -103,7 +103,7 @@ class ADMM(object):
 
         def body(k, varz, residuals):
             need_residuals = math_ops.equal(k, epoch_iters-1)
-            varzp, residualsp = self._iterate(varz, tol, need_residuals)
+            varzp, residualsp = self._iterate(varz, tol, need_residuals, k)
             return [k+1, varzp, residualsp]
 
         loop_vars = [0, self.variables, self.default_residuals]
