@@ -38,8 +38,8 @@ def multiple_quantile_regression():
     f = cvx.sum_entries(
         cvx.mul_elemwise(np.tile(-tau[np.newaxis], (4,1)), cvx.min_elemwise(Z, 0)) +
         cvx.mul_elemwise(np.tile(1-tau[np.newaxis], (4,1)), cvx.max_elemwise(Z, 0)))
-    f += 1e-4/2*cvx.sum_squares(X)
-    return X, cvx.Problem(cvx.Minimize(f))
+    f += 1e-2/2*cvx.sum_squares(X)
+    return X, cvx.Problem(cvx.Minimize(f), [Z[:,1:] - Z[:,:-1] >= 0])
 
 
 PROBLEMS = [lasso, least_abs_dev, quantile_regression, multiple_quantile_regression]
