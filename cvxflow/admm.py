@@ -52,7 +52,8 @@ class ADMM(object):
         self.default_residuals = [
             constant_op.constant(0, dtype=dtype) for _ in range(4)]
 
-    def _iterate(self, (x, z, u), (rtol, atol), need_residuals, k):
+    def _iterate(self, *args):
+        (x, z, u), (rtol, atol), need_residuals, k = args
         A, AT = self.A
         B, BT = self.B
         c = self.c

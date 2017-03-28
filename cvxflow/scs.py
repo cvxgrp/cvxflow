@@ -1,5 +1,9 @@
 """Solve an LP using SCS on tensorflow."""
 
+from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
+
 from collections import namedtuple
 import time
 
@@ -169,7 +173,7 @@ def solve(problem, max_iters=2500, trace=False, eps_primal=1e-3, eps_dual=1e-3,
     init_cache_op = init_cache(scaled_problem, cache)
     iterate_op = iterate(scaled_problem, u, v, cache, counters)
     residuals = compute_residuals(scaled_problem, u, v)
-    print "graph_build_time: %.2f secs" % (time.time() - t0)
+    print("graph_build_time: %.2f secs" % (time.time() - t0))
 
     if trace:
         run_options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
@@ -183,8 +187,8 @@ def solve(problem, max_iters=2500, trace=False, eps_primal=1e-3, eps_dual=1e-3,
     with tf.Session(config=config) as sess:
         sess.run(init_op)
         b_norm, c_norm = sess.run([norm(problem.b), norm(problem.c)])
-        print "b_norm:", b_norm
-        print "c_norm:", c_norm
+        print("b_norm:", b_norm)
+        print("c_norm:", c_norm)
 
         def check_converged_and_print(k):
             p_norm, d_norm, c_dot_x, b_dot_y, tau, kappa = sess.run([
@@ -200,8 +204,8 @@ def solve(problem, max_iters=2500, trace=False, eps_primal=1e-3, eps_dual=1e-3,
             g0 = np.abs(g) / (1 + np.abs(c_dot_x) + np.abs(b_dot_y))
 
             if k % 100 == 0:
-                print "k=%d, ||p||=%.4e, ||d||=%.4e, |g|=%.4e, pri=%.4e, dua=%.4e, kap/tau=%.4e" % (
-                    k, p_norm0, d_norm0, g0, c_dot_x, -b_dot_y, kappa / tau)
+                print("k=%d, ||p||=%.4e, ||d||=%.4e, |g|=%.4e, pri=%.4e, dua=%.4e, kap/tau=%.4e" % (
+                    k, p_norm0, d_norm0, g0, c_dot_x, -b_dot_y, kappa / tau))
 
             return (p_norm0 <= eps_primal and
                     d_norm0 <= eps_dual and
@@ -230,6 +234,6 @@ def solve(problem, max_iters=2500, trace=False, eps_primal=1e-3, eps_dual=1e-3,
         total_cg_iters = sess.run(counters.total_cg_iters)
         objective = sess.run(residuals.c_dot_x)
 
-    print "iterations:", k
-    print "avg_cg_iters: %.2f" % (float(total_cg_iters) / float(k))
+    print("iterations:", k)
+    print("avg_cg_iters: %.2f" % (float(total_cg_iters) / float(k)))
     return objective

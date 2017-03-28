@@ -51,7 +51,7 @@ class TensorProblem(object):
         # sort variables by offset
         self.var_ids = [var_id for var_id, var_offset in sorted(
             self.sym_data.var_offsets.items(),
-            key=lambda (var_id, var_offset): var_offset)]
+            key=lambda var_id, var_offset: var_offset)]
         self.constraints = (self.sym_data.constr_map[s.EQ] +
                             self.sym_data.constr_map[s.LEQ])
 

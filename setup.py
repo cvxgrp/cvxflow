@@ -8,8 +8,8 @@ setup(
     author_email = "mwytock@stanford.edu, diamond@stanford.edu",
     packages = find_packages(),
     install_requires=[
-        "cvxpy>=0.4.8",
-        "tensorflow>=1.0.1",
+        "cvxpy",
+        "tensorflow",
     ],
     test_suite = "cvxflow",
 )
