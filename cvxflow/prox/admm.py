@@ -93,12 +93,8 @@ class ADMM(object):
 
         return [xp, zp, up], residuals
 
-    @property
-    def _output_variables(self):
-        return self.variables
-
     def solve(self, max_iters=10000, epoch_iters=10, verbose=False, sess=None,
-              atol=1e-4, rtol=1e-2, profile=False):
+              atol=1e-4, rtol=1e-2, profile=False, output=None):
         t_start = time.time()
         tol = (rtol, atol)
 
@@ -167,4 +163,6 @@ class ADMM(object):
 
             print("%s, %.2f seconds." % (status, time.time() - t_start))
 
-        return sess.run(self._output_variables)
+        if output is None:
+            output = self.variables
+        return sess.run(output)
