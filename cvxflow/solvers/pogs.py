@@ -101,7 +101,7 @@ class POGS(IterativeSolver):
                 return r_norm, s_norm, eps_pri, eps_dual
 
             r_norm, s_norm, eps_pri, eps_dual = (
-                tf.cond(tf.equal(state.k % self.residual_iterations, 0),
+                tf.cond(tf.equal((state.k+1) % self.residual_iterations, 0),
                         calculate_residuals,
                         lambda: (state.r_norm, state.s_norm,
                                  state.eps_pri, state.eps_dual)))
