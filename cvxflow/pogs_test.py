@@ -12,10 +12,7 @@ from tensorflow.python.platform import test
 
 from cvxflow import block_ops
 from cvxflow import pogs
-from cvxflow.prox import absolute_value
-from cvxflow.prox import block_separable
-from cvxflow.prox import least_squares
-from cvxflow.prox import non_negative
+from cvxflow import prox
 
 class POGSTest(test.TestCase):
   @property
@@ -39,8 +36,8 @@ class LassoTest(POGSTest):
           return math_ops.matmul(A1, y, transpose_a=True)
 
         solver = pogs.POGS(
-          prox_f=least_squares.LeastSquares(A=I, b=b),
-          prox_g=absolute_value.AbsoluteValue(scale=lam),
+          prox_f=prox.LeastSquares(A=I, b=b, n=m, dtype=dtype),
+          prox_g=prox.AbsoluteValue(scale=lam),
           A=(A, AT),
           shape=(m, n),
           dtype=dtype)
@@ -87,16 +84,15 @@ class MultipleQuantileRegressionTest(POGSTest):
 
         scale = (ops.convert_to_tensor(tau, dtype=dtype),
                  ops.convert_to_tensor(1-tau, dtype=dtype))
-        tilted_l1 = absolute_value.AbsoluteValue(scale=scale)
+        tilted_l1 = prox.AbsoluteValue(scale=scale)
         def prox_quantile_loss(v):
           return tilted_l1(v-y) + y
 
         solver = pogs.POGS(
-          prox_f=block_separable.BlockSeparable(
-            [prox_quantile_loss,
-             non_negative.NonNegative()],
-            shape=y_shape),
-          prox_g=least_squares.LeastSquares(mu=1e-2, n=n*k, dtype=dtype),
+          prox_f=prox.BlockSeparable(
+            proxs=[prox_quantile_loss, prox.Nonnegative()],
+            shapes=y_shape),
+          prox_g=prox.LeastSquares(mu=1e-2, n=n*k, dtype=dtype),
           A=(A, AT),
           shape=(m*k+m*(k-1), n*k),
           dtype=dtype)

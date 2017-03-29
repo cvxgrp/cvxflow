@@ -5,8 +5,7 @@ from tensorflow.python.framework import ops
 from tensorflow.python.ops import array_ops
 from tensorflow.python.platform import test
 
-from cvxflow.prox import absolute_value
-from cvxflow.prox import least_squares
+from cvxflow import prox
 from cvxflow import admm
 
 def argmin_prox(prox):
@@ -22,16 +21,12 @@ class ADMMTest(test.TestCase):
 
 
 class LassoTest(ADMMTest):
-  def _verify(self, A0, b0, lam0, expected_x):
+  def _verify(self, A, b, lam, expected_x):
     for dtype in self._dtypes_to_test:
       with self.test_session() as sess:
-        A = ops.convert_to_tensor(A0, dtype=dtype)
-        b = ops.convert_to_tensor(b0, dtype=dtype)
-        lam = ops.convert_to_tensor(lam0, dtype=dtype)
-
-        n = A.get_shape().as_list()[1]
-        argmin_f = argmin_prox(least_squares.LeastSquares(A=A, b=b))
-        argmin_g = argmin_prox(absolute_value.AbsoluteValue(scale=lam))
+        n = len(A[0])
+        argmin_f = argmin_prox(prox.LeastSquares(A=A, b=b, n=n, dtype=dtype))
+        argmin_g = argmin_prox(prox.AbsoluteValue(scale=lam))
         solver = admm.ADMM(argmin_f, argmin_g, shape=(n,n,n,1), dtype=dtype)
         x, _, _ = solver.solve(sess=sess)
 

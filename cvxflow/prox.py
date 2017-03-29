@@ -15,7 +15,7 @@ class ProxFunction(object):
     def __init__(self, name=None):
         self.name = name or type(self).__name__
         with tf.name_scope(self.name):
-            with tf.name_scope("Initialize"):
+            with tf.name_scope("initialize"):
                 self.initialize()
 
     def call(self, v):
@@ -26,7 +26,7 @@ class ProxFunction(object):
 
     def __call__(self, v):
         with tf.name_scope(self.name):
-            with tf.name_scope("Call"):
+            with tf.name_scope("call"):
                 return self.call(v)
 
 class AbsoluteValue(ProxFunction):
