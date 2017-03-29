@@ -6,8 +6,8 @@ from tensorflow.python.ops import array_ops
 from tensorflow.python.ops import linalg_ops
 from tensorflow.python.ops import math_ops
 
-from cvxflow.solvers import admm
-from cvxflow.solvers import conjugate_gradient
+from cvxflow.solvers.admm import ADMM
+from cvxflow.solvers.conjugate_gradient import ConjugateGradientLeastSquares
 
 PROJECT_TOL_MIN = 1e-2
 PROJECT_TOL_MAX = 1e-2
@@ -27,7 +27,7 @@ class POGS(object):
       self.prox_g = prox_g or (lambda x: x)
       self.A, self.AT = A
       self.m, self.n = shape
-      self.admm = admm.ADMM(
+      self.admm = ADMM(
         self._apply_prox, self._project, dtype=dtype, shape=(
           self.m+self.n, self.m+self.n, self.m+self.n, 1))
 
@@ -48,9 +48,10 @@ class POGS(object):
 
     b = v_y - self.A(v_x)
     x_init = array_ops.zeros_like(v_x)
-    x = conjugate_gradient.cgls_solve(
+    cgls = ConjugateGradientLeastSquares(
       self.A, self.AT, b, x_init, tol=tol, shift=1)
-    x = x + v_x
+    state = cgls.solve()
+    x = state.x + v_x
     y = self.A(x)
     return array_ops.concat([y, x], axis=0)
 
