@@ -4,8 +4,8 @@ import numpy as np
 import tensorflow as tf
 from numpy.testing import assert_allclose
 
-from cvxflow.problem import TensorProblem
-from cvxflow.problem_testutil import PROBLEMS
+from cvxflow.cone_problem import TensorProblem
+from cvxflow.cone_problem_testutil import PROBLEMS
 
 class ProblemTest(tf.test.TestCase):
     pass
