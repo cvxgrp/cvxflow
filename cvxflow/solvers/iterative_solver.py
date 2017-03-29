@@ -5,10 +5,6 @@ class IterativeSolver(object):
     def __init__(self, name=None):
         self.name = name or type(self).__name__
 
-    @property
-    def state(self):
-        raise NotImplementedError
-
     def init(self):
         raise NotImplementedError
 
@@ -40,11 +36,12 @@ class IterativeSolver(object):
             self._init())
 
 def run_epochs(sess, solver, epoch_iterations, status):
-    state = solver.state(*[tf.variable(x) for x in solver._init()])
+    state = solver.state(*[tf.Variable(x) for x in solver._init()])
     next_state = tf.while_loop(
         lambda k, state: k < epoch_iterations,
-        lambda k, state: k+1, solver._iterate(state),
-        (0, state))[1:]
+        lambda k, state: (k+1, solver._iterate(state)),
+        (0, state))[1]
+
     epoch_op = tf.group(
         *[var.assign(val) for var, val in zip(state, next_state)])
 

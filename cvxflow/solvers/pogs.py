@@ -11,7 +11,7 @@ from cvxflow.solvers import conjugate_gradient
 from cvxflow.solvers.iterative_solver import IterativeSolver, run_epochs
 
 PROJECT_TOL_MIN = 1e-2
-PROJECT_TOL_MAX = 1e-2
+PROJECT_TOL_MAX = 1e-8
 PROJECT_TOL_POW = 1.3
 
 class POGS(IterativeSolver):
@@ -22,7 +22,7 @@ class POGS(IterativeSolver):
     """
     def __init__(
             self, prox_f=None, prox_g=None, A=None, AT=None, shape=None,
-            dtype=tf.float32, rho=1, rtol=1e-2, atol=1e-4, max_iterations=10000,
+            dtype=tf.float32, rho=1, rtol=1e-2, atol=1e-4, max_iterations=1000,
             **kwargs):
         self.prox_f = prox_f or (lambda x: x)
         self.prox_g = prox_g or (lambda x: x)
@@ -34,17 +34,15 @@ class POGS(IterativeSolver):
         self.rtol = rtol
         self.rho = rho
         self.max_iterations = max_iterations
-        super(POGS, self).__init__(**kwargs)
 
-    @property
-    def state(self):
-        return namedtuple(
-            "State", [
-                "x", "y",
-                "x_tilde", "y_tilde",
-                "r_norm", "s_norm",
-                "eps_pri", "eps_dual",
-                "k", "total_cg_iters"])
+        self.state = namedtuple("State", [
+            "x", "y",
+            "x_tilde", "y_tilde",
+            "r_norm", "s_norm",
+            "eps_pri", "eps_dual",
+            "k", "total_cg_iters"])
+
+        super(POGS, self).__init__(**kwargs)
 
     def init(self):
         x = tf.constant(0, shape=(self.n,1), dtype=self.dtype)
@@ -117,18 +115,34 @@ def run(sess, epoch_iterations=10, **kwargs):
     pogs = POGS(**kwargs)
     print("POGS - proximal operator graph solver")
     print("rtol=%.2e, atol=%.2e" % (pogs.rtol, pogs.atol))
-    print("%5s %10s %10s %10s %10s %6s" % (
-        ("iter", "r norm", "eps pri", "s norm", "eps dual", "time")))
-    print("-"*56)
+
+    print("%5s %10s %10s %10s %10s %10s %6s" % (
+        ("iter", "r norm", "eps pri", "s norm", "eps dual", "cg iters", "time")))
+    print("-"*67)
 
     t0 = time.time()
+    last_values = [t0, 0, 0]
     def status(state):
-        print("%5d %10.2e %10.2e %10.2e %10.2e %5.0fs" %
-              sess.run(state.k, state.r_norm, state.eps_pri, state.s_norm,
-                       state.eps_dual) + [time.time() - t0])
+        t0, last_total_cg_iters, last_k = last_values
+        values = sess.run([state.k, state.r_norm, state.eps_pri,
+                           state.s_norm, state.eps_dual])
+
+        k, total_cg_iters = sess.run([state.k, state.total_cg_iters])
+        avg_cg_iters = (total_cg_iters - last_total_cg_iters) / (k - last_k)
+        values.append(avg_cg_iters)
+
+        t1 = time.time()
+        values.append(t1 - t0)
+
+        print("%5d %10.2e %10.2e %10.2e %10.2e %10.2f %5.0fs" % tuple(values))
+        last_values[:] = t1, total_cg_iters, k
 
     state = run_epochs(sess, pogs, epoch_iterations, status)
-    status = "Converged" if state.k <= pogs.max_iterations else "Max iterations"
-    print("-"*56)
+    total_cg_iters, total_iters = sess.run([state.total_cg_iters, state.k])
+    if total_iters >= pogs.max_iterations:
+        status = "Max iterations reached"
+    else:
+        status = "Converged"
+
+    print("-"*67)
     print("%s, %.2f seconds" % (status, time.time() - t0))
-    print("Average CGLS iters: %.2f" % (state.total_cg_iters / state.k))
