@@ -5,7 +5,7 @@ import numpy as np
 import scipy.sparse as sp
 import tensorflow as tf
 
-from cvxflow import cvxpy_expr
+from cvxflow import expressions
 
 np.random.seed(0)
 A_sparse = sp.rand(5, 3, 0.5)
@@ -30,8 +30,8 @@ def get_tensor_test(f_expr, x, y):
         xt = tf.constant(x, dtype=tf.float32)
         yt = tf.constant(y, dtype=tf.float32)
 
-        Ax = cvxpy_expr.tensor(f, {x_var.id: xt})
-        ATy = cvxpy_expr.adjoint_tensor(f, yt)[x_var.id]
+        Ax = expressions.tensor(f, {x_var.id: xt})
+        ATy = expressions.adjoint_tensor(f, yt)[x_var.id]
 
         with self.test_session():
             assert_allclose(Ax.eval(), A*x)
