@@ -22,8 +22,8 @@ class POGS(IterativeSolver):
     """
     def __init__(
             self, prox_f=None, prox_g=None, A=None, AT=None, shape=None,
-            dtype=tf.float32, rho=1, rtol=1e-2, atol=1e-4, max_iterations=1000,
-            **kwargs):
+            dtype=tf.float32, rho=1, rtol=1e-2, atol=1e-4, max_iterations=10000,
+            residual_iterations=100, **kwargs):
         self.prox_f = prox_f or (lambda x: x)
         self.prox_g = prox_g or (lambda x: x)
         self.A = A
@@ -34,6 +34,7 @@ class POGS(IterativeSolver):
         self.rtol = rtol
         self.rho = rho
         self.max_iterations = max_iterations
+        self.residual_iterations = residual_iterations
 
         self.state = namedtuple("State", [
             "x", "y",
@@ -88,14 +89,22 @@ class POGS(IterativeSolver):
             x_tilde = x0 - x
             y_tilde = y0 - y
 
-        # TODO(mwytock): Only run this every k iterations
         with tf.name_scope("residuals"):
-            mu_h = -self.rho*(x_h - state.x + state.x_tilde)
-            nu_h = -self.rho*(y_h - state.y + state.y_tilde)
-            eps_pri = self.atol + self.rtol*tf.norm(y_h)
-            eps_dual = self.atol + self.rtol*tf.norm(mu_h)
-            r_norm = tf.norm(self.A(x_h) - y_h)
-            s_norm = tf.norm(self.AT(nu_h) + mu_h)
+            # Only calculate residuals every k iterations
+            def calculate_residuals():
+                mu_h = -self.rho*(x_h - state.x + state.x_tilde)
+                nu_h = -self.rho*(y_h - state.y + state.y_tilde)
+                eps_pri = self.atol + self.rtol*tf.norm(y_h)
+                eps_dual = self.atol + self.rtol*tf.norm(mu_h)
+                r_norm = tf.norm(self.A(x_h) - y_h)
+                s_norm = tf.norm(self.AT(nu_h) + mu_h)
+                return r_norm, s_norm, eps_pri, eps_dual
+
+            r_norm, s_norm, eps_pri, eps_dual = (
+                tf.cond(tf.equal(state.k % self.residual_iterations, 0),
+                        calculate_residuals,
+                        lambda: (state.r_norm, state.s_norm,
+                                 state.eps_pri, state.eps_dual)))
 
         return self.state(
             x, y,
@@ -114,7 +123,8 @@ class POGS(IterativeSolver):
 def run(sess, epoch_iterations=10, **kwargs):
     pogs = POGS(**kwargs)
     print("POGS - proximal operator graph solver")
-    print("rtol=%.2e, atol=%.2e" % (pogs.rtol, pogs.atol))
+    print("m=%d, n=%d, rtol=%.2e, atol=%.2e" % (
+        pogs.m, pogs.n, pogs.rtol, pogs.atol))
 
     print("%5s %10s %10s %10s %10s %10s %6s" % (
         ("iter", "r norm", "eps pri", "s norm", "eps dual", "cg iters", "time")))
