@@ -120,7 +120,7 @@ class POGS(IterativeSolver):
             state.k >= self.max_iterations)
 
 
-def run(sess, epoch_iterations=10, **kwargs):
+def run(sess, epoch_iterations=10, profile=False, **kwargs):
     pogs = POGS(**kwargs)
     print("POGS - proximal operator graph solver")
     print("m=%d, n=%d, rtol=%.2e, atol=%.2e" % (
@@ -147,7 +147,7 @@ def run(sess, epoch_iterations=10, **kwargs):
         print("%5d %10.2e %10.2e %10.2e %10.2e %10.2f %5.0fs" % tuple(values))
         last_values[:] = t1, total_cg_iters, k
 
-    state = run_epochs(sess, pogs, epoch_iterations, status)
+    state = run_epochs(sess, pogs, epoch_iterations, status, profile=profile)
     total_cg_iters, total_iters = sess.run([state.total_cg_iters, state.k])
     if total_iters >= pogs.max_iterations:
         status = "Max iterations reached"

@@ -35,7 +35,7 @@ class IterativeSolver(object):
             lambda *args: self._iterate(self.state(*args)),
             self._init())
 
-def run_epochs(sess, solver, epoch_iterations, status):
+def run_epochs(sess, solver, epoch_iterations, status, profile=False):
     state = solver.state(*[tf.Variable(x) for x in solver._init()])
     next_state = tf.while_loop(
         lambda k, state: k < epoch_iterations,
@@ -49,6 +49,20 @@ def run_epochs(sess, solver, epoch_iterations, status):
     stop_op = solver._stop(state)
     sess.run(init_op)
     while not sess.run(stop_op):
+        if profile:
+            run_options = config_pb2.RunOptions(
+                trace_level=config_pb2.RunOptions.FULL_TRACE)
+            run_metadata = config_pb2.RunMetadata()
+            sess.run(epoch_op, run_metadata=run_metadata)
+
+            tl = timeline.Timeline(run_metadata.step_stats)
+            ctf = tl.generate_chrome_trace_format()
+            filename = "/tmp/cvxflow_%s_epoch_%d.json" % (solver.name, i)
+            with open(filename, "w") as f:
+                f.write(ctf)
+        else:
+            sess.run(epoch_op)
+
         sess.run(epoch_op)
         status(state)
 
