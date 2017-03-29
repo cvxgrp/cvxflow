@@ -18,17 +18,41 @@ class IterativeSolver(object):
     def stop(self, state):
         raise NotImplementedError
 
-    def solve(self):
+    def _iterate(self, state):
         with tf.name_scope(self.name):
-            with tf.name_scope("initialize"):
-                init = self.init()
+            with tf.name_scope("iterate"):
+                return self.iterate(state)
 
-            def body(*args):
-                with tf.name_scope("iterate"):
-                    return self.iterate(self.state(*args))
+    def _stop(self, state):
+        with tf.name_scope(self.name):
+            with tf.name_scope("stop"):
+                return self.stop(state)
 
-            def cond(*args):
-                with tf.name_scope("stop"):
-                    return tf.logical_not(self.stop(self.state(*args)))
+    def _init(self):
+        with tf.name_scope(self.name):
+            with tf.name_scope("init"):
+                return self.init()
 
-            return tf.while_loop(cond, body, init)
+    def solve(self):
+        return tf.while_loop(
+            lambda *args: tf.logical_not(self._stop(self.state(*args))),
+            lambda *args: self._iterate(self.state(*args)),
+            self._init())
+
+def run_epochs(sess, solver, epoch_iterations, status):
+    state = solver.state(*[tf.variable(x) for x in solver._init()])
+    next_state = tf.while_loop(
+        lambda k, state: k < epoch_iterations,
+        lambda k, state: k+1, solver._iterate(state),
+        (0, state))[1:]
+    epoch_op = tf.group(
+        *[var.assign(val) for var, val in zip(state, next_state)])
+
+    init_op = tf.global_variables_initializer()
+    stop_op = solver._stop(state)
+    sess.run(init_op)
+    while not sess.run(stop_op):
+        sess.run(epoch_op)
+        status(state)
+
+    return state
