@@ -12,9 +12,9 @@ import numpy as np
 import tensorflow as tf
 
 from cvxflow.cones import proj_nonnegative, proj_cone
-from cvxflow import conjugate_gradient
+from cvxflow.solvers import conjugate_gradient
 from cvxflow.equilibrate import equilibrate, balance
-from cvxflow.problem import TensorProblem
+from cvxflow.cone_problem import TensorProblem
 from cvxflow import vector_ops
 
 PrimalVars = namedtuple("PrimalVars", ["x", "y", "tau"])

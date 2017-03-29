@@ -5,9 +5,9 @@ import cvxpy as cvx
 import numpy as np
 import tensorflow as tf
 
-from cvxflow import scs
-from cvxflow.problem import TensorProblem
-from cvxflow.problem_testutil import PROBLEMS
+from cvxflow.solvers import scs
+from cvxflow.cone_problem import TensorProblem
+from cvxflow.cone_problem_testutil import PROBLEMS
 from cvxflow import vector_ops
 
 def expected_subspace_projection(data, x):

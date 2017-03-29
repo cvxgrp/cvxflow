@@ -11,8 +11,8 @@ from tensorflow.python.ops import math_ops
 from tensorflow.python.platform import test
 
 from cvxflow import block_ops
-from cvxflow import pogs
 from cvxflow import prox
+from cvxflow.solvers import pogs
 
 class POGSTest(test.TestCase):
   @property

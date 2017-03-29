@@ -17,9 +17,9 @@ import numpy as np
 import tensorflow as tf
 
 from cvxflow import cones
-from cvxflow import cvxpy_expr
+from cvxflow import expressions
 from cvxflow import vector_ops
-from cvxflow.cvxpy_expr import sum_dicts
+from cvxflow.expressions import sum_dicts
 
 
 def get_constraint_tensors(constraints):
@@ -35,7 +35,7 @@ def get_objective_tensor(var_ids, sym_data):
     xs = [tf.Variable(tf.zeros(sym_data.var_sizes[var_id], dtype=tf.float32))
           for var_id in var_ids]
     xs_map = dict(zip((var_id for var_id in var_ids), xs))
-    obj_t = cvxpy_expr.tensor(sym_data.objective, xs_map)
+    obj_t = expressions.tensor(sym_data.objective, xs_map)
 
     # get gradient, handling None values
     return vector_ops.vstack([
@@ -64,7 +64,7 @@ class TensorProblem(object):
             var_offset = self.sym_data.var_offsets[var_id]
             idx = slice(var_offset, var_offset+var_size[0]*var_size[1])
             xs[var_id] = vector_ops.mat(x[idx,:], var_size)
-        return vector_ops.vstack([vector_ops.vec(cvxpy_expr.tensor(Ai, xs)) for Ai in self.A_exprs])
+        return vector_ops.vstack([vector_ops.vec(expressions.tensor(Ai, xs)) for Ai in self.A_exprs])
 
     def AT(self, y):
         ys = []
@@ -73,7 +73,7 @@ class TensorProblem(object):
             idx = slice(offset, offset+constr.size[0]*constr.size[1])
             ys.append(vector_ops.mat(y[idx,:], constr.size))
             offset += constr.size[0]*constr.size[1]
-        x_map = sum_dicts(cvxpy_expr.adjoint_tensor(Ai, ys[i])
+        x_map = sum_dicts(expressions.adjoint_tensor(Ai, ys[i])
                           for i, Ai in enumerate(self.A_exprs))
         return vector_ops.vstack([vector_ops.vec(x_map[var_id]) for var_id in self.var_ids])
 

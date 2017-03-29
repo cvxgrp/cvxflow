@@ -6,7 +6,7 @@ from tensorflow.python.ops import math_ops
 from tensorflow.python.platform import test
 import numpy as np
 
-from cvxflow import conjugate_gradient
+from cvxflow.solvers import conjugate_gradient
 
 class ConjugateGradientTest(test.TestCase):
   @property

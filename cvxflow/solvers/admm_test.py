@@ -6,7 +6,7 @@ from tensorflow.python.ops import array_ops
 from tensorflow.python.platform import test
 
 from cvxflow import prox
-from cvxflow import admm
+from cvxflow.solvers import admm
 
 def argmin_prox(prox):
   def argmin(v, k):
