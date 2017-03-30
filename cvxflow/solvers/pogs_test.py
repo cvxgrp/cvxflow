@@ -46,7 +46,7 @@ class LassoTest(POGSTest):
                     prox_g=prox.AbsoluteValue(scale=lam),
                     A=A,
                     AT=AT,
-                    shape=(m, n),
+                    shape=((n, 1), (m, 1)),
                     dtype=dtype)
 
                 state = solver.solve()
@@ -85,7 +85,7 @@ class OrthogonalLassoTest(POGSTest):
                     prox_g=prox_g_tilde,
                     A=lambda x: s*x,
                     project_linear=LinearEqualityDiag(s),
-                    shape=(n, n),
+                    shape=((n,1), (n,1)),
                     dtype=dtype)
 
                 state = solver.solve()
@@ -143,7 +143,7 @@ class MultipleQuantileRegressionTest(POGSTest):
                     prox_g=prox.LeastSquares(mu=1e-2, n=n*k, dtype=dtype),
                     A=A,
                     AT=AT,
-                    shape=(m*k+m*(k-1), n*k),
+                    shape=((n*k,1), (m*k+m*(k-1),1)),
                     dtype=dtype,
                     max_iterations=3000)
 
@@ -236,7 +236,7 @@ class OrthogonalMultipleQuantileRegressionTest(POGSTest):
                     prox_g=prox_g_tilde,
                     A=A,
                     AT=AT,
-                    shape=(m*k + m*(k-1), m*k),
+                    shape=((m*k, 1), (m*k + m*(k-1), 1)),
                     dtype=dtype)
 
                 state = solver.solve()

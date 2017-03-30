@@ -29,7 +29,7 @@ class POGS(IterativeSolver):
         self.prox_g = prox_g or (lambda x: x)
         self.A = A
         self.AT = AT or A
-        self.m, self.n = utils.normalize_tuple(shape, 2, "shape")
+        self.x_shape, self.y_shape = shape
         self.dtype = dtype
         self.atol = atol
         self.rtol = rtol
@@ -48,10 +48,10 @@ class POGS(IterativeSolver):
         super(POGS, self).__init__(**kwargs)
 
     def init(self):
-        x = tf.constant(0, shape=(self.n,1), dtype=self.dtype)
-        y = tf.constant(0, shape=(self.m,1), dtype=self.dtype)
-        x_tilde = tf.constant(0, shape=(self.n,1), dtype=self.dtype)
-        y_tilde = tf.constant(0, shape=(self.m,1), dtype=self.dtype)
+        x = tf.constant(0, shape=self.x_shape, dtype=self.dtype)
+        y = tf.constant(0, shape=self.y_shape, dtype=self.dtype)
+        x_tilde = tf.constant(0, shape=self.x_shape, dtype=self.dtype)
+        y_tilde = tf.constant(0, shape=self.y_shape, dtype=self.dtype)
         r_norm = tf.constant(np.inf, dtype=self.dtype)
         s_norm = tf.constant(np.inf, dtype=self.dtype)
         eps_pri = tf.constant(0, dtype=self.dtype)
@@ -102,10 +102,12 @@ class POGS(IterativeSolver):
         with tf.name_scope("residuals"):
             # Only calculate residuals every k iterations
             def calculate_residuals():
+                n = np.prod(self.x_shape)
+                m = np.prod(self.y_shape)
                 mu_h = -self.rho*(x_h - state.x + state.x_tilde)
                 nu_h = -self.rho*(y_h - state.y + state.y_tilde)
-                eps_pri = self.atol*np.sqrt(self.m) + self.rtol*tf.norm(y_h)
-                eps_dual = self.atol*np.sqrt(self.n) + self.rtol*tf.norm(mu_h)
+                eps_pri = self.atol*np.sqrt(m) + self.rtol*tf.norm(y_h)
+                eps_dual = self.atol*np.sqrt(n) + self.rtol*tf.norm(mu_h)
                 r_norm = tf.norm(self.A(x_h) - y_h)
                 s_norm = tf.norm(self.AT(nu_h) + mu_h)
                 return r_norm, s_norm, eps_pri, eps_dual
