@@ -176,8 +176,7 @@ class OrthogonalMultipleQuantileRegressionTest(POGSTest):
         n = len(X_np[0])
         k = len(tau)
 
-        D = get_difference_operator(k)
-        U_np, s, QT_np = np.linalg.svd(D.T)
+        U_np, s, QT_np = np.linalg.svd(get_difference_operator(k).T)
 
         for dtype in self.dtypes_to_test:
             with self.test_session() as sess:
@@ -186,64 +185,53 @@ class OrthogonalMultipleQuantileRegressionTest(POGSTest):
                 U = tf.convert_to_tensor(U_np, dtype=dtype)
                 Q = tf.convert_to_tensor(QT_np.T, dtype=dtype)
 
-                def mat(x, size):
-                    return tf.transpose(tf.reshape(x, (size[1], size[0])))
-                def vec(x):
-                    return tf.reshape(tf.transpose(x), [-1,1])
-
                 rho = 1
                 scale = (tf.convert_to_tensor(tau/rho, dtype=dtype),
                          tf.convert_to_tensor((1-tau)/rho, dtype=dtype))
                 prox_f1 = prox.Composition(prox.AbsoluteValue(scale=scale), b=-y)
                 prox_f2 = prox.Nonnegative()
                 def prox_f_tilde(v):
-                    V1 = mat(v[:m*k,:], (m, k))
-                    V2 = mat(v[m*k:,:], (m, k-1))
-                    Y1_h = prox_f1(tf.matmul(V1, U, transpose_b=True))
-                    Y2_h = prox_f2(tf.matmul(V2, Q, transpose_b=True))
-                    Y1 = tf.matmul(Y1_h, U)
-                    Y2 = tf.matmul(Y2_h, Q)
-                    return tf.concat([vec(Y1), vec(Y2)], axis=0)
+                    v1, v2 = v[:,:k], v[:,k:]
+                    y1_h = prox_f1(tf.matmul(v1, U, transpose_b=True))
+                    y2_h = prox_f2(tf.matmul(v2, Q, transpose_b=True))
+                    y1 = tf.matmul(y1_h, U)
+                    y2 = tf.matmul(y2_h, Q)
+                    return tf.concat([y1, y2], axis=1)
 
                 mu = 1e-2
                 chol = tf.cholesky(tf.matmul(X, X, transpose_a=True) +
                                    mu*tf.eye(n, dtype=dtype))
                 def prox_g(v):
                     Z = tf.cholesky_solve(chol, tf.matmul(X, v, transpose_a=True))
-                    Y = tf.matmul(X, Z)
-                    return Y
+                    return tf.matmul(X, Z)
 
                 def prox_g_tilde(v):
-                    V = mat(v, (m, k))
-                    X_h = prox_g(tf.matmul(V, U, transpose_b=True))
-                    X = tf.matmul(X_h, U)
-                    return vec(X)
+                    X_h = prox_g(tf.matmul(v, U, transpose_b=True))
+                    return tf.matmul(X_h, U)
 
                 def A(x):
-                    X = mat(x, (m, k))
-                    Y1 = X
-                    Y2 = X[:,:-1]*s
-                    return tf.concat([vec(Y1), vec(Y2)], axis=0)
+                    y1 = x
+                    y2 = x[:,:-1]*s
+                    return tf.concat([y1, y2], axis=1)
+
                 def AT(y):
-                    Y1 = mat(y[:m*k,:], (m, k))
-                    Y2 = mat(y[m*k:,:], (m, k-1))
+                    y1, y2 = y[:,:k], y[:,k:]
                     zero = tf.zeros((m,1), dtype=dtype)
-                    X = Y1 + tf.concat([Y2*s, zero], axis=1)
-                    return vec(X)
+                    return y1 + tf.concat([y2*s, zero], axis=1)
 
                 solver = pogs.POGS(
                     prox_f=prox_f_tilde,
                     prox_g=prox_g_tilde,
                     A=A,
                     AT=AT,
-                    shape=((m*k, 1), (m*k + m*(k-1), 1)),
+                    shape=((m, k), (m, k + k-1)),
                     dtype=dtype)
 
                 state = solver.solve()
 
-                V = mat(state.x - state.x_tilde, (m, k))
-                V = tf.matmul(V, U, transpose_b=True)
-                theta = tf.cholesky_solve(chol, tf.matmul(X, V, transpose_a=True))
+                v = state.x - state.x_tilde
+                v = tf.matmul(v, U, transpose_b=True)
+                theta = tf.cholesky_solve(chol, tf.matmul(X, v, transpose_a=True))
 
                 k_np, theta_np = sess.run([state.k, theta])
                 z = np.array(X_np).dot(theta_np) - np.array(y_np)
