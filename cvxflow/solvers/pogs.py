@@ -23,11 +23,11 @@ class POGS(IterativeSolver):
     def __init__(
             self, prox_f=None, prox_g=None, A=None, AT=None, shape=None,
             dtype=tf.float32, rho=1, rtol=1e-2, atol=1e-4, max_iterations=10000,
-            residual_iterations=100, use_direct_solver=False, **kwargs):
+            residual_iterations=100, project_linear=None, **kwargs):
         self.prox_f = prox_f or (lambda x: x)
         self.prox_g = prox_g or (lambda x: x)
         self.A = A
-        self.AT = AT
+        self.AT = AT or A
         self.m, self.n = shape
         self.dtype = dtype
         self.atol = atol
@@ -35,7 +35,7 @@ class POGS(IterativeSolver):
         self.rho = rho
         self.max_iterations = max_iterations
         self.residual_iterations = residual_iterations
-        self.use_direct_solver = use_direct_solver
+        self.project_linear = project_linear
 
         self.state = namedtuple("State", [
             "x", "y",
@@ -58,13 +58,6 @@ class POGS(IterativeSolver):
         k = tf.constant(0)
         total_cg_iters = tf.constant(0)
 
-        if self.use_direct_solver:
-            if self.m >= self.n:
-                ATA = [self.AT(self.A(tf.one_hot(i, self.n, dtype=self.dtype)))
-                       for i in range(self.n)]
-                ATA = tf.concat(ATA, axis=1)
-                self.chol = tf.cholesky(ATA + tf.eye(self.n, dtype=self.dtype))
-
         return self.state(
             x, y,
             x_tilde, y_tilde,
@@ -82,14 +75,6 @@ class POGS(IterativeSolver):
         y = self.A(x)
         return x, y, cg_state.k
 
-    def project_ata(self, x0, y0):
-        x = tf.cholesky_solve(self.chol, x0 + self.AT(y0))
-        y = self.A(x)
-        return x, y
-
-    def project_aat(self, x0, y0):
-        raise NotImplementedError
-
     def iterate(self, state):
         with tf.name_scope("prox"):
             x_h = self.prox_g(state.x - state.x_tilde)
@@ -99,12 +84,9 @@ class POGS(IterativeSolver):
             x0 = x_h + state.x_tilde
             y0 = y_h + state.y_tilde
 
-            if self.use_direct_solver:
+            if self.project_linear:
+                x, y = self.project_linear(x0, y0)
                 cg_iters = 0
-                if self.m >= self.n:
-                    x, y = self.project_ata(x0, y0)
-                else:
-                    x, y = self.project_aat(x0, y0)
             else:
                 k = tf.cast(state.k, self.dtype)
                 cg_tol = tf.maximum(

@@ -65,12 +65,16 @@ class OrthogonalLassoTest(POGSTest):
                     return tf.matmul(U, prox_f(tf.matmul(U, v)), transpose_a=True)
                 def prox_g_tilde(v):
                     return tf.matmul(V, prox_g(tf.matmul(V, v)), transpose_a=True)
+                def project_linear_diag(x, y):
+                    x = (x + s*y)/(1 + s*s)
+                    y = s*x
+                    return x, y
 
                 solver = pogs.POGS(
                     prox_f=prox_f_tilde,
                     prox_g=prox_g_tilde,
                     A=lambda x: s*x,
-                    AT=lambda y: s*y,
+                    project_linear=project_linear_diag,
                     shape=(n, n),
                     dtype=dtype)
 
