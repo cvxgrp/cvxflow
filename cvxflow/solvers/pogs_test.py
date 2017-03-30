@@ -6,6 +6,20 @@ from cvxflow import block_ops
 from cvxflow import prox
 from cvxflow.solvers import pogs
 
+# TODO(mwytock): Should this be a multi-argument prox function?
+class LinearEqualityDiag(object):
+    """Diagonal linear equality.
+
+    I(y = s*x)
+    """
+    def __init__(self, s):
+        self.s = s
+
+    def __call__(self, v, u):
+        x = (v + self.s*u)/(1 + self.s*self.s)
+        y = self.s*x
+        return x, y
+
 class POGSTest(tf.test.TestCase):
     @property
     def dtypes_to_test(self):
@@ -65,16 +79,12 @@ class OrthogonalLassoTest(POGSTest):
                     return tf.matmul(U, prox_f(tf.matmul(U, v)), transpose_a=True)
                 def prox_g_tilde(v):
                     return tf.matmul(V, prox_g(tf.matmul(V, v)), transpose_a=True)
-                def project_linear_diag(x, y):
-                    x = (x + s*y)/(1 + s*s)
-                    y = s*x
-                    return x, y
 
                 solver = pogs.POGS(
                     prox_f=prox_f_tilde,
                     prox_g=prox_g_tilde,
                     A=lambda x: s*x,
-                    project_linear=project_linear_diag,
+                    project_linear=LinearEqualityDiag(s),
                     shape=(n, n),
                     dtype=dtype)
 
@@ -152,6 +162,103 @@ class MultipleQuantileRegressionTest(POGSTest):
     def testMultipleQuantileRegression(self):
         self.verify([[1.,1.],[1.,2.],[1.,3.],[1.,4.]], [[1.],[2.],[10.],[20.]],
                      10.0051362724)
+
+def get_difference_operator(n):
+    D = np.zeros((n-1,n))
+    D[np.arange(n-1),np.arange(n-1)] = -1
+    D[np.arange(n-1),np.arange(n-1)+1] = 1
+    return D
+
+class OrthogonalMultipleQuantileRegressionTest(POGSTest):
+    def verify(self, X_np, y_np, expected_obj_val):
+        tau = np.array([0.2,0.5,0.8])
+        m = len(X_np)
+        n = len(X_np[0])
+        k = len(tau)
+
+        D = get_difference_operator(k)
+        U_np, s, QT_np = np.linalg.svd(D.T)
+
+        for dtype in self.dtypes_to_test:
+            with self.test_session() as sess:
+                X = tf.convert_to_tensor(X_np, dtype=dtype)
+                y = tf.convert_to_tensor(y_np, dtype=dtype)
+                U = tf.convert_to_tensor(U_np, dtype=dtype)
+                Q = tf.convert_to_tensor(QT_np.T, dtype=dtype)
+
+                def mat(x, size):
+                    return tf.transpose(tf.reshape(x, (size[1], size[0])))
+                def vec(x):
+                    return tf.reshape(tf.transpose(x), [-1,1])
+
+                rho = 1
+                scale = (tf.convert_to_tensor(tau/rho, dtype=dtype),
+                         tf.convert_to_tensor((1-tau)/rho, dtype=dtype))
+                prox_f1 = prox.Composition(prox.AbsoluteValue(scale=scale), b=-y)
+                prox_f2 = prox.Nonnegative()
+                def prox_f_tilde(v):
+                    V1 = mat(v[:m*k,:], (m, k))
+                    V2 = mat(v[m*k:,:], (m, k-1))
+                    Y1_h = prox_f1(tf.matmul(V1, U, transpose_b=True))
+                    Y2_h = prox_f2(tf.matmul(V2, Q, transpose_b=True))
+                    Y1 = tf.matmul(Y1_h, U)
+                    Y2 = tf.matmul(Y2_h, Q)
+                    return tf.concat([vec(Y1), vec(Y2)], axis=0)
+
+                mu = 1e-2
+                chol = tf.cholesky(tf.matmul(X, X, transpose_a=True) +
+                                   mu*tf.eye(n, dtype=dtype))
+                def prox_g(v):
+                    Z = tf.cholesky_solve(chol, tf.matmul(X, v, transpose_a=True))
+                    Y = tf.matmul(X, Z)
+                    return Y
+
+                def prox_g_tilde(v):
+                    V = mat(v, (m, k))
+                    X_h = prox_g(tf.matmul(V, U, transpose_b=True))
+                    X = tf.matmul(X_h, U)
+                    return vec(X)
+
+                def A(x):
+                    X = mat(x, (m, k))
+                    Y1 = X
+                    Y2 = X[:,:-1]*s
+                    return tf.concat([vec(Y1), vec(Y2)], axis=0)
+                def AT(y):
+                    Y1 = mat(y[:m*k,:], (m, k))
+                    Y2 = mat(y[m*k:,:], (m, k-1))
+                    zero = tf.zeros((m,1), dtype=dtype)
+                    X = Y1 + tf.concat([Y2*s, zero], axis=1)
+                    return vec(X)
+
+                solver = pogs.POGS(
+                    prox_f=prox_f_tilde,
+                    prox_g=prox_g_tilde,
+                    A=A,
+                    AT=AT,
+                    shape=(m*k + m*(k-1), m*k),
+                    dtype=dtype)
+
+                state = solver.solve()
+
+                V = mat(state.x - state.x_tilde, (m, k))
+                V = tf.matmul(V, U, transpose_b=True)
+                theta = tf.cholesky_solve(chol, tf.matmul(X, V, transpose_a=True))
+
+                k_np, theta_np = sess.run([state.k, theta])
+                z = np.array(X_np).dot(theta_np) - np.array(y_np)
+                obj_val = (np.sum(-tau*np.minimum(z, 0) + (1-tau)*np.maximum(z, 0)) +
+                           mu/2*np.sum(theta_np**2))
+
+                self.assertEqual(dtype, theta.dtype)
+                self.assertLess(k_np, solver.max_iterations)
+                self.assertAllClose(expected_obj_val, obj_val, rtol=1e-2, atol=1e-4)
+
+    def testMultipleQuantileRegression(self):
+        self.verify([[1.,1.],[1.,2.],[1.,3.],[1.,4.]], [[1.],[2.],[10.],[20.]],
+                     10.0051362724)
+
+
 
 
 if __name__ == "__main__":

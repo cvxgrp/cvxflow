@@ -1,14 +1,7 @@
 import tensorflow as tf
 
 from cvxflow import block_ops
-
-def _normalize_tuple(value, n, name):
-    if isinstance(value, tuple):
-        if len(value) != n:
-            raise ValueError("The '" + name + "' argument must be a tuple of "
-                             "length " + str(n) + ". Received: " + str(value))
-        return value
-    return (value,)*2
+from cvxflow import utils
 
 class ProxFunction(object):
     """Abstract base class for proximal functions."""
@@ -35,7 +28,7 @@ class AbsoluteValue(ProxFunction):
     If lam is a scalar, lam*|x|
     If lam is a tuple, -lam[0]*neg(x) + lam[1]*pos(x)."""
     def __init__(self, scale=None, **kwargs):
-        self.scale = _normalize_tuple(scale, 2, "scale")
+        self.scale = utils.normalize_tuple(scale, 2, "scale")
         super(AbsoluteValue, self).__init__(**kwargs)
 
     def call(self, v):
@@ -106,3 +99,25 @@ class LeastSquares(ProxFunction):
 
         else:
             return tf.cholesky_solve(self.chol, self.h + v)
+
+class Composition(ProxFunction):
+    """Composition.
+
+    f(Qx + b)."""
+    def __init__(self, prox=None, Q=None, b=None, **kwargs):
+        self.prox = prox
+        self.Q = Q
+        self.b = b
+        super(Composition, self).__init__(**kwargs)
+
+    def call(self, v):
+        if self.Q is not None:
+            v = tf.matmul(Q, v)
+        if self.b is not None:
+            v = v + self.b
+        x = self.prox(v)
+        if self.b is not None:
+            x = x - self.b
+        if self.Q is not None:
+            x = tf.matmul(Q, x, transpose_a=True)
+        return x

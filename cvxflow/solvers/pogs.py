@@ -9,6 +9,7 @@ import time
 
 from cvxflow.solvers import conjugate_gradient
 from cvxflow.solvers.iterative_solver import IterativeSolver, run_epochs
+from cvxflow import utils
 
 PROJECT_TOL_MIN = 1e-2
 PROJECT_TOL_MAX = 1e-8
@@ -28,7 +29,7 @@ class POGS(IterativeSolver):
         self.prox_g = prox_g or (lambda x: x)
         self.A = A
         self.AT = AT or A
-        self.m, self.n = shape
+        self.m, self.n = utils.normalize_tuple(shape, 2, "shape")
         self.dtype = dtype
         self.atol = atol
         self.rtol = rtol
