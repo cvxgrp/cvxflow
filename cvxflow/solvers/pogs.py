@@ -23,7 +23,7 @@ class POGS(IterativeSolver):
     def __init__(
             self, prox_f=None, prox_g=None, A=None, AT=None, shape=None,
             dtype=tf.float32, rho=1, rtol=1e-2, atol=1e-4, max_iterations=10000,
-            residual_iterations=100, **kwargs):
+            residual_iterations=100, use_direct_solver=False, **kwargs):
         self.prox_f = prox_f or (lambda x: x)
         self.prox_g = prox_g or (lambda x: x)
         self.A = A
@@ -35,6 +35,7 @@ class POGS(IterativeSolver):
         self.rho = rho
         self.max_iterations = max_iterations
         self.residual_iterations = residual_iterations
+        self.use_direct_solver = use_direct_solver
 
         self.state = namedtuple("State", [
             "x", "y",
@@ -56,6 +57,14 @@ class POGS(IterativeSolver):
         eps_dual = tf.constant(0, dtype=self.dtype)
         k = tf.constant(0)
         total_cg_iters = tf.constant(0)
+
+        if self.use_direct_solver:
+            if self.m >= self.n:
+                ATA = [self.AT(self.A(tf.one_hot(i, self.n, dtype=self.dtype)))
+                       for i in range(self.n)]
+                ATA = tf.concat(ATA, axis=1)
+                self.chol = tf.cholesky(ATA + tf.eye(self.n, dtype=self.dtype))
+
         return self.state(
             x, y,
             x_tilde, y_tilde,
@@ -63,27 +72,45 @@ class POGS(IterativeSolver):
             eps_pri, eps_dual,
             k, total_cg_iters)
 
+    def project_cgls(self, x0, y0, tol):
+        b = y0 - self.A(x0)
+        x_init = tf.zeros_like(x0)
+        cgls = conjugate_gradient.ConjugateGradientLeastSquares(
+            self.A, self.AT, b, x_init, tol=tol, shift=1)
+        cg_state = cgls.solve()
+        x = cg_state.x + x0
+        y = self.A(x)
+        return x, y, cg_state.k
+
+    def project_ata(self, x0, y0):
+        x = tf.cholesky_solve(self.chol, x0 + self.AT(y0))
+        y = self.A(x)
+        return x, y
+
+    def project_aat(self, x0, y0):
+        raise NotImplementedError
+
     def iterate(self, state):
         with tf.name_scope("prox"):
             x_h = self.prox_g(state.x - state.x_tilde)
             y_h = self.prox_f(state.y - state.y_tilde)
 
         with tf.name_scope("projection"):
-            k = tf.cast(state.k, self.dtype)
-            cg_tol = tf.maximum(
-                PROJECT_TOL_MIN / tf.pow(k+1, PROJECT_TOL_POW),
-                PROJECT_TOL_MAX)
-
             x0 = x_h + state.x_tilde
             y0 = y_h + state.y_tilde
-            b = y0 - self.A(x0)
-            x_init = tf.zeros_like(x0)
-            cgls = conjugate_gradient.ConjugateGradientLeastSquares(
-                self.A, self.AT, b, x_init, tol=cg_tol, shift=1)
-            cg_state = cgls.solve()
-            x = cg_state.x + x0
-            y = self.A(x)
-            total_cg_iters =  state.total_cg_iters + cg_state.k
+
+            if self.use_direct_solver:
+                cg_iters = 0
+                if self.m >= self.n:
+                    x, y = self.project_ata(x0, y0)
+                else:
+                    x, y = self.project_aat(x0, y0)
+            else:
+                k = tf.cast(state.k, self.dtype)
+                cg_tol = tf.maximum(
+                    PROJECT_TOL_MIN / tf.pow(k+1, PROJECT_TOL_POW),
+                    PROJECT_TOL_MAX)
+                x, y, cg_iters = self.project_cgls(x0, y0, cg_tol)
 
         with tf.name_scope("dual_update"):
             x_tilde = x0 - x
@@ -94,8 +121,8 @@ class POGS(IterativeSolver):
             def calculate_residuals():
                 mu_h = -self.rho*(x_h - state.x + state.x_tilde)
                 nu_h = -self.rho*(y_h - state.y + state.y_tilde)
-                eps_pri = self.atol + self.rtol*tf.norm(y_h)
-                eps_dual = self.atol + self.rtol*tf.norm(mu_h)
+                eps_pri = self.atol*np.sqrt(self.m) + self.rtol*tf.norm(y_h)
+                eps_dual = self.atol*np.sqrt(self.n) + self.rtol*tf.norm(mu_h)
                 r_norm = tf.norm(self.A(x_h) - y_h)
                 s_norm = tf.norm(self.AT(nu_h) + mu_h)
                 return r_norm, s_norm, eps_pri, eps_dual
@@ -111,7 +138,8 @@ class POGS(IterativeSolver):
             x_tilde, y_tilde,
             r_norm, s_norm,
             eps_pri, eps_dual,
-            state.k+1, total_cg_iters)
+            state.k+1,
+            state.total_cg_iters+cg_iters)
 
     def stop(self, state):
         return tf.logical_or(

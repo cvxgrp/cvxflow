@@ -2,13 +2,17 @@
 import tensorflow as tf
 
 def dot(a, b):
-    return tf.squeeze(tf.matmul(a, b, transpose_a=True))
+    with tf.name_scope("dot"):
+        return tf.reduce_sum(a*b)
 
 def vec(X):
-    return tf.reshape(X, [-1, 1])
+    with tf.name_scope("vec"):
+        return tf.reshape(X, [-1, 1])
 
 def mat(x, size):
-    return tf.reshape(x, size)
+    with tf.name_scope("mat"):
+        return tf.reshape(x, size)
 
 def vstack(xs):
-    return tf.concat(xs, axis=0)
+    with tf.name_scope("vstack"):
+        return tf.concat(xs, axis=0)
