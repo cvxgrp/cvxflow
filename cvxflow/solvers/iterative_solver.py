@@ -1,5 +1,8 @@
 import tensorflow as tf
 
+from tensorflow.core.protobuf import config_pb2
+from tensorflow.python.client import timeline
+
 class IterativeSolver(object):
     """Abstract base class for iterative solvers."""
     def __init__(self, name=None):
@@ -44,6 +47,7 @@ def run_epochs(sess, solver, epoch_iterations, status, profile=False):
 
     epoch_op = tf.group(
         *[var.assign(val) for var, val in zip(state, next_state)])
+    epoch = 0
 
     init_op = tf.global_variables_initializer()
     stop_op = solver._stop(state)
@@ -53,17 +57,19 @@ def run_epochs(sess, solver, epoch_iterations, status, profile=False):
             run_options = config_pb2.RunOptions(
                 trace_level=config_pb2.RunOptions.FULL_TRACE)
             run_metadata = config_pb2.RunMetadata()
-            sess.run(epoch_op, run_metadata=run_metadata)
+            sess.run(epoch_op,
+                     options=run_options,
+                     run_metadata=run_metadata)
 
             tl = timeline.Timeline(run_metadata.step_stats)
             ctf = tl.generate_chrome_trace_format()
-            filename = "/tmp/cvxflow_%s_epoch_%d.json" % (solver.name, i)
+            filename = "/tmp/cvxflow_%s_epoch_%d.json" % (solver.name, epoch)
             with open(filename, "w") as f:
                 f.write(ctf)
+            epoch += 1
         else:
             sess.run(epoch_op)
 
-        sess.run(epoch_op)
         status(state)
 
     return state
