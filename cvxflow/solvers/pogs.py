@@ -136,8 +136,10 @@ class POGS(IterativeSolver):
 def run(sess, epoch_iterations=10, profile=False, **kwargs):
     pogs = POGS(**kwargs)
     print("POGS - proximal operator graph solver")
-    print("m=%d, n=%d, rtol=%.2e, atol=%.2e" % (
-        pogs.m, pogs.n, pogs.rtol, pogs.atol))
+    print("x shape=(%s), y shape=(%s)" % (
+        ", ".join(str(x) for x in pogs.x_shape),
+        ", ".join(str(x) for x in pogs.y_shape)))
+    print("rel tol=%.2e, abs tol=%.2e" % (pogs.rtol, pogs.atol))
 
     print("%5s %10s %10s %10s %10s %10s %6s" % (
         ("iter", "r norm", "eps pri", "s norm", "eps dual", "cg iters", "time")))
