@@ -106,8 +106,8 @@ class POGS(IterativeSolver):
                 m = np.prod(self.y_shape)
                 mu_h = -self.rho*(x_h - state.x + state.x_tilde)
                 nu_h = -self.rho*(y_h - state.y + state.y_tilde)
-                eps_pri = self.atol*np.sqrt(m) + self.rtol*tf.norm(y_h)
-                eps_dual = self.atol*np.sqrt(n) + self.rtol*tf.norm(mu_h)
+                eps_pri = self.atol + self.rtol*tf.norm(y_h)
+                eps_dual = self.atol + self.rtol*tf.norm(mu_h)
                 r_norm = tf.norm(self.A(x_h) - y_h)
                 s_norm = tf.norm(self.AT(nu_h) + mu_h)
                 return r_norm, s_norm, eps_pri, eps_dual
@@ -139,7 +139,7 @@ def run(sess, epoch_iterations=10, profile=False, **kwargs):
     print("x shape=(%s), y shape=(%s)" % (
         ", ".join(str(x) for x in pogs.x_shape),
         ", ".join(str(x) for x in pogs.y_shape)))
-    print("rel tol=%.2e, abs tol=%.2e" % (pogs.rtol, pogs.atol))
+    print("rel tol=%.2e, abs tol=%.2e, rho=%.2e" % (pogs.rtol, pogs.atol, pogs.rho))
 
     print("%5s %10s %10s %10s %10s %10s %6s" % (
         ("iter", "r norm", "eps pri", "s norm", "eps dual", "cg iters", "time")))
@@ -171,3 +171,5 @@ def run(sess, epoch_iterations=10, profile=False, **kwargs):
 
     print("-"*67)
     print("%s, %.2f seconds" % (status, time.time() - t0))
+
+    return state
