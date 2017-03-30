@@ -47,6 +47,44 @@ class LassoTest(POGSTest):
                     [[1.6666666], [0]])
 
 
+class OrthogonalLassoTest(POGSTest):
+    def verify(self, A0, b, lam, expected_x):
+        U0, s0, VT0 = np.linalg.svd(A0, full_matrices=False)
+        m, n = U0.shape
+
+        for dtype in self.dtypes_to_test:
+            with self.test_session() as sess:
+                U = tf.convert_to_tensor(U0, dtype=dtype)
+                V = tf.convert_to_tensor(VT0.T, dtype=dtype)
+                s = tf.convert_to_tensor(s0.reshape(-1,1), dtype=dtype)
+
+                I = tf.eye(m, dtype=dtype)
+                prox_f = prox.LeastSquares(A=I, b=b, n=m, dtype=dtype)
+                prox_g = prox.AbsoluteValue(scale=lam)
+                def prox_f_tilde(v):
+                    return tf.matmul(U, prox_f(tf.matmul(U, v)), transpose_a=True)
+                def prox_g_tilde(v):
+                    return tf.matmul(V, prox_g(tf.matmul(V, v)), transpose_a=True)
+
+                solver = pogs.POGS(
+                    prox_f=prox_f_tilde,
+                    prox_g=prox_g_tilde,
+                    A=lambda x: s*x,
+                    AT=lambda y: s*y,
+                    shape=(n, n),
+                    dtype=dtype)
+
+                state = solver.solve()
+                x = tf.matmul(V, state.x)
+                self.assertEqual(dtype, x.dtype)
+                self.assertLess(sess.run(state.k), solver.max_iterations)
+                self.assertAllClose(expected_x, sess.run(x), rtol=1e-2, atol=1e-4)
+
+    def testOrthogonalLasso(self):
+        self.verify([[1.,-10],[1.,10.],[1.,0.]], [[2.],[2.],[2.]], 1,
+                    [[1.6666666], [0]])
+
+
 class MultipleQuantileRegressionTest(POGSTest):
     def verify(self, X0, y0, expected_obj_val):
         for dtype in self.dtypes_to_test:
