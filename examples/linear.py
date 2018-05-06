@@ -52,8 +52,8 @@ def run_spsolve(Ax_expr, x_var):
 def run_tensorflow(Ax_expr, x_var):
     import tensorflow as tf
 
-    from cvxflow.conjugate_gradient import conjugate_gradient_solve
-    from cvxflow import cvxpy_expr
+    from cvxflow.solvers import conjugate_gradient
+    from cvxflow import expressions
 
     b0 = Ax_expr.value
     b0 += sigma*np.random.randn(*b0.shape)
@@ -62,34 +62,35 @@ def run_tensorflow(Ax_expr, x_var):
     t0 = time.time()
     expr = Ax_expr.canonicalize()[0]
     def A(x):
-        return cvxpy_expr.tensor(expr, {x_var.id: x})
+        return expressions.tensor(expr, {x_var.id: x})
     def AT(y):
-        return cvxpy_expr.adjoint_tensor(expr, y)[x_var.id]
+        return expressions.adjoint_tensor(expr, y)[x_var.id]
     def M(x):
         return lam*x + AT(A(x))
 
     b = tf.constant(b0.reshape(-1,1), dtype=tf.float32)
     x_init = tf.zeros((n,1))
-    x, iters, r_norm_sq = conjugate_gradient_solve(M, AT(b), x_init)
+    solver = conjugate_gradient.ConjugateGradient(M, AT(b), x_init)
+    state = solver.solve() 
 
-    init = tf.initialize_all_variables()
+    init = tf.global_variables_initializer()
     print "init_time: %.2f secs" % (time.time() - t0)
 
     t0 = time.time()
     with tf.Session(config=tf.ConfigProto(device_count={"GPU": 0})) as sess:
         sess.run(init)
-        x0, iters0, r_norm_sq0 = sess.run([x, iters, r_norm_sq])
+        state_np = sess.run(state)
         print "cpu_solve_time: %.2f secs" % (time.time() - t0)
 
     t0 = time.time()
     with tf.Session() as sess:
         sess.run(init)
-        x0, iters0, r_norm_sq0 = sess.run([x, iters, r_norm_sq])
+        state_np = sess.run(state)
         print "gpu_solve_time: %.2f secs" % (time.time() - t0)
 
-    x_var.value = x0
+    x_var.value = state_np.x
     print "objective: %.3e" % obj.value
-    print "cg_iterations:", iters0
+    print "cg_iterations:", state_np.k
 
 
 if __name__ == "__main__":

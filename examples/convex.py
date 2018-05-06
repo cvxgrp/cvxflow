@@ -82,8 +82,8 @@ def run_scs(prob):
     print "get_problem_data_time: %.2f secs" % (time.time() - t0)
 
 def run_tensorflow(prob):
-    from cvxflow.problem import TensorProblem
-    from cvxflow import scs_tf
+    from cvxflow.cone_problem import TensorProblem
+    from cvxflow.solvers import scs
 
     t0 = time.time()
     t_prob = TensorProblem(prob)
@@ -95,7 +95,7 @@ def run_tensorflow(prob):
     # print "objective: %.2e" % objective
 
     t0 = time.time()
-    objective = scs_tf.solve(t_prob, equil_iters=50, max_iters=2500, gpu=False)
+    objective = scs.solve(t_prob, equil_iters=50, max_iters=2500, gpu=False)
     print "cpu_solve_time: %.2f secs" % (time.time() - t0)
     print "objective: %.2e" % objective
 
