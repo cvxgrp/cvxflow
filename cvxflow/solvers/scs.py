@@ -94,7 +94,6 @@ def iterate(problem, u, v, cache, counters):
 
     g_dot_w = tf.tensordot(cache.g_x, w_x, 2) + tf.tensordot(cache.g_y, w_y, 2)
     g_dot_h = tf.tensordot(cache.g_x, problem.c, 2) + tf.tensordot(cache.g_y, problem.b, 2)
-    print (tf.tensordot(z_x, problem.c, 2))
     alpha = ((w_tau*g_dot_h -
               tf.tensordot(z_x, problem.c, 2) -
               tf.tensordot(z_y, problem.b, 2))/(1 + g_dot_h) - w_tau)
@@ -177,7 +176,7 @@ def solve(problem, max_iters=2500, trace=False, eps_primal=1e-3, eps_dual=1e-3,
 
     # ops
     t0 = time.time()
-    init_op = tf.initialize_all_variables()
+    init_op = tf.global_variables_initializer()
     init_cache_op = init_cache(scaled_problem, cache)
     iterate_op = iterate(scaled_problem, u, v, cache, counters)
     residuals = compute_residuals(scaled_problem, u, v)

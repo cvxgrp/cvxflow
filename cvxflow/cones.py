@@ -17,12 +17,12 @@ proj_dual_nonnegative = proj_nonnegative
 
 def proj_second_order(x):
     s, v = x[:1,:], x[1:,:]
-    norm_v = norm(v)
+    norm_v = tf.norm(v)
     s = tf.squeeze(s)
     return tf.case(
         ((norm_v <= -s, lambda: tf.zeros_like(x)),
          (norm_v <=  s, lambda: x)),
-        lambda: 0.5*(1 + s/norm_v)*vstack([tf.reshape(norm_v, (1,1)), v]))
+        lambda: 0.5*(1 + s/norm_v)*tf.concat([tf.reshape(norm_v, (1,1)), v], 0))
 proj_dual_second_order = proj_second_order
 
 def proj_zero(x):
