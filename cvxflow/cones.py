@@ -1,6 +1,7 @@
 
 import tensorflow as tf
 
+import numpy as np
 from cvxflow import vector_ops
 from tensorflow.python.ops import linalg_ops
 
@@ -37,4 +38,4 @@ def proj_cone(cone_slices, x, dual=False):
         proj = globals()[prefix + cone]
         ys.append(proj(x[idx,:]))
 
-    return vstack(ys)
+    return tf.concat(ys, 0)
