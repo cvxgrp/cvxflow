@@ -27,6 +27,11 @@ def tensor(lin_op, value_map={}):
     f_name = "tensor_" + lin_op.type
     return globals()[f_name](lin_op, value_map)
 
+def tensor_transpose(lin_op, value_map):
+    return tf.transpose(
+        tensor(lin_op.args[0], value_map))
+
+
 def tensor_mul(lin_op, value_map):
     a = tensor(lin_op.data, value_map)
     b = tensor(lin_op.args[0], value_map)
@@ -110,6 +115,10 @@ def adjoint_tensor_mul(lin_op, value):
 
     return adjoint_tensor(lin_op.args[0], c)
 
+def adjoint_tensor_transpose(lin_op, value):
+    return adjoint_tensor(lin_op.args[0], tf.transpose(value))
+
+    
 def adjoint_tensor_neg(lin_op, value):
     return adjoint_tensor(lin_op.args[0], -value)
 
