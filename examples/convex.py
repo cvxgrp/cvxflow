@@ -23,10 +23,10 @@ def nn_deconv(n):
 
 def lasso_dense(n):
     m = n//2
-    d = np.random.lognormal(0, 3, size=m)
-    e = np.random.lognormal(0, 3, size=n)
-    A = np.diag(d).dot(np.random.randn(m, n)).dot(np.diag(e))
-    # A = np.random.randn(m, n)
+    #d = np.random.lognormal(0, 3, size=m)
+    #e = np.random.lognormal(0, 3, size=n)
+    #A = np.diag(d).dot(np.random.randn(m, n)).dot(np.diag(e))
+    A = np.random.randn(m, n)
     A /= np.sqrt(np.sum(A**2, 0))
     b = A*sp.rand(n, 1, 0.1) + 1e-2*np.random.randn(m,1)
     lam = 0.2*np.max(np.abs(A.T.dot(b)))
@@ -67,6 +67,19 @@ def lasso_conv(n):
     f = cvx.norm1(cvx.conv(c, x) - b) + lam*cvx.norm1(x)
     return cvx.Problem(cvx.Minimize(f))
 
+def graph_matching():
+    A = np.matrix([[1, 0, 0], [0, 0, 1], [1, 0, 0]] )
+    B =  np.matrix([[1, 0, 0], [0, 0, 1], [1, 0, 0]] )
+
+    P = cvx.Variable(3, 3)
+
+    C = (B.T * P.T)
+    D = (A*P) - C.T
+    objective = cvx.Minimize(cvx.norm1(D))
+
+    prob = cvx.Problem(objective, [cvx.sum_entries(P, axis=0) ==1, cvx.sum_entries(P.T, axis=0) ==1, P >=0])
+    return prob
+
 def run_scs(prob):
     # t0 = time.time()
     # prob.solve(solver=cvx.SCS, verbose=True, gpu=True)
@@ -82,8 +95,8 @@ def run_scs(prob):
     print "get_problem_data_time: %.2f secs" % (time.time() - t0)
 
 def run_tensorflow(prob):
-    from cvxflow.problem import TensorProblem
-    from cvxflow import scs_tf
+    from cvxflow.cone_problem import TensorProblem
+    from cvxflow.solvers import scs
 
     t0 = time.time()
     t_prob = TensorProblem(prob)
@@ -95,11 +108,14 @@ def run_tensorflow(prob):
     # print "objective: %.2e" % objective
 
     t0 = time.time()
-    objective = scs_tf.solve(t_prob, equil_iters=50, max_iters=2500, gpu=False)
+    objective = scs.solve(t_prob, equil_iters=50, max_iters=2500, gpu=False)
     print "cpu_solve_time: %.2f secs" % (time.time() - t0)
     print "objective: %.2e" % objective
 
 if __name__ == "__main__":
+
+    run_tensorflow(graph_matching())
+    '''
     _, run_name, prob_name, n_str = sys.argv
     run = globals()["run_" + run_name]
     prob = globals()[prob_name]
@@ -110,3 +126,4 @@ if __name__ == "__main__":
     run(prob(n))
     print
     print
+    '''

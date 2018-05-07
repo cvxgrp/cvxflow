@@ -5,6 +5,7 @@ In particular, problems of the form
   subject to  b - Ax in K
 """
 
+
 from collections import namedtuple
 from cvxpy.lin_ops import lin_op
 from cvxpy.lin_ops import lin_utils
@@ -51,7 +52,8 @@ class TensorProblem(object):
         # sort variables by offset
         self.var_ids = [var_id for var_id, var_offset in sorted(
             self.sym_data.var_offsets.items(),
-            key=lambda var_id, var_offset: var_offset)]
+            key=lambda varItem: varItem[1])]
+
         self.constraints = (self.sym_data.constr_map[s.EQ] +
                             self.sym_data.constr_map[s.LEQ])
 
