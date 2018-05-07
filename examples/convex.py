@@ -68,10 +68,10 @@ def lasso_conv(n):
     return cvx.Problem(cvx.Minimize(f))
 
 def graph_matching():
-    A = np.ndarray(shape=(2,2), dtype=float, order='F')
-    B =  np.ndarray(shape=(2,2), dtype=float, order='F')
+    A = np.matrix([[1, 0, 0], [0, 0, 1], [1, 0, 0]] )
+    B =  np.matrix([[1, 0, 0], [0, 0, 1], [1, 0, 0]] )
 
-    P = cvx.Variable(2, 2)
+    P = cvx.Variable(3, 3)
 
     C = (B.T * P.T)
     D = (A*P) - C.T

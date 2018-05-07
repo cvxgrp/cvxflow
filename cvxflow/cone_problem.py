@@ -25,8 +25,6 @@ from cvxflow.expressions import sum_dicts
 
 def get_constraint_tensors(constraints):
     """Get expression for Ax + b."""
-    for constr in constraints:
-        print constr.expr
     A_exprs = [constr.expr for constr in tree_mat.prune_constants(constraints)]
     b = vector_ops.vstack(
         [vector_ops.vec(tf.constant(-tree_mat.mul(constr.expr, {}), dtype=tf.float32))
@@ -59,7 +57,6 @@ class TensorProblem(object):
         self.constraints = (self.sym_data.constr_map[s.EQ] +
                             self.sym_data.constr_map[s.LEQ])
 
-        #print self.constraints
         self.A_exprs, self.b = get_constraint_tensors(self.constraints)
         self.c = get_objective_tensor(self.var_ids, self.sym_data)
 
